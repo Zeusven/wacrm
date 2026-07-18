@@ -38,11 +38,11 @@ import { useTranslations } from "next-intl";
 
 // Spec-defined seed — name and color per the product spec.
 const SPEC_DEFAULT_STAGES = [
-  { name: "New Lead", color: "#3b82f6", position: 0 }, // blue
-  { name: "Qualified", color: "#eab308", position: 1 }, // yellow
-  { name: "Proposal Sent", color: "#f97316", position: 2 }, // orange
-  { name: "Negotiation", color: "#8b5cf6", position: 3 }, // purple
-  { name: "Won", color: "#22c55e", position: 4 }, // green
+  { name: "Prospecto", color: "#3b82f6", position: 0 }, // blue
+  { name: "Contactado", color: "#eab308", position: 1 }, // yellow
+  { name: "Demo Agendada", color: "#f97316", position: 2 }, // orange
+  { name: "Negociación", color: "#8b5cf6", position: 3 }, // purple
+  { name: "Cliente", color: "#22c55e", position: 4 }, // green
 ];
 
 export default function PipelinesPage() {

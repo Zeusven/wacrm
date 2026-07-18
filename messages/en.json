@@ -486,7 +486,7 @@
       "newPipeline": "New Pipeline",
       "pipelineName": "Pipeline Name",
       "pipelineNamePlaceholder": "e.g., Enterprise Sales",
-      "defaultStagesDesc": "Default stages (New Lead → Won) will be created automatically.",
+      "defaultStagesDesc": "Default stages (Prospecto → Cliente) will be created automatically.",
       "cancel": "Cancel",
       "creating": "Creating...",
       "createPipelineBtn": "Create Pipeline",
