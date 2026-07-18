@@ -1,0 +1,44 @@
+# wacrm en Dokploy — modo Compose (NO "Application"/Nixpacks, ver
+# lesson_dokploy_frontend_swarm_vs_compose: Traefik no enruta bien en
+# Swarm con el modo Application por defecto).
+#
+# Cargá estas variables en el servicio dentro de Dokploy (Environment):
+#   NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY,
+#   SUPABASE_SERVICE_ROLE_KEY, ENCRYPTION_KEY, META_APP_SECRET,
+#   NEXT_PUBLIC_SITE_URL, WACRM_DOMAIN (para la regla de Traefik)
+#
+# NEXT_PUBLIC_* deben estar TAMBIÉN como build args (van embebidas en el
+# bundle del cliente) — Dokploy las propaga automáticamente si están en
+# el Environment del servicio y el compose las referencia en `build.args`.
+
+services:
+  wacrm:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL}
+        NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY}
+        NEXT_PUBLIC_SITE_URL: ${NEXT_PUBLIC_SITE_URL}
+        NEXT_PUBLIC_APP_LOCALE: ${NEXT_PUBLIC_APP_LOCALE:-es}
+    environment:
+      NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL}
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY}
+      SUPABASE_SERVICE_ROLE_KEY: ${SUPABASE_SERVICE_ROLE_KEY}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY}
+      META_APP_SECRET: ${META_APP_SECRET}
+      NEXT_PUBLIC_SITE_URL: ${NEXT_PUBLIC_SITE_URL}
+      NEXT_PUBLIC_APP_LOCALE: ${NEXT_PUBLIC_APP_LOCALE:-es}
+    networks:
+      - dokploy-network
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.wacrm.rule=Host(`${WACRM_DOMAIN}`)"
+      - "traefik.http.routers.wacrm.entrypoints=websecure"
+      - "traefik.http.routers.wacrm.tls.certresolver=letsencrypt"
+      - "traefik.http.services.wacrm.loadbalancer.server.port=3000"
+    restart: unless-stopped
+
+networks:
+  dokploy-network:
+    external: true
