@@ -36,6 +36,7 @@ services:
       - "traefik.http.routers.wacrm.rule=Host(`${WACRM_DOMAIN}`)"
       - "traefik.http.routers.wacrm.entrypoints=websecure"
       - "traefik.http.routers.wacrm.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.wacrm.service=wacrm"
       - "traefik.http.services.wacrm.loadbalancer.server.port=3000"
     restart: unless-stopped
 
