@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { toast } from 'sonner';
-import type { Contact, Tag, ContactTag } from '@/types';
+import type { Contact, Tag, ContactTag, CustomField } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -78,6 +78,14 @@ export default function ContactsPage() {
   // Tag filter — contacts shown must have ANY of these tags (OR).
   const [selectedTagIds, setSelectedTagIds] = useState<string[]>([]);
 
+  // Custom-field filters — one entry per field the account has defined
+  // (e.g. "Especialidad", "Consultorio"). Within a field, ANY selected
+  // value matches (OR); across fields, ALL must match (AND). Generic
+  // over whatever custom fields exist — not hardcoded to specific names.
+  const [customFields, setCustomFields] = useState<CustomField[]>([]);
+  const [customFieldValues, setCustomFieldValues] = useState<Record<string, string[]>>({});
+  const [selectedCustomValues, setSelectedCustomValues] = useState<Record<string, string[]>>({});
+
   // Modals
   const [formOpen, setFormOpen] = useState(false);
   const [editContact, setEditContact] = useState<Contact | null>(null);
@@ -118,6 +126,41 @@ export default function ContactsPage() {
     }
   }, [supabase]);
 
+  const fetchCustomFields = useCallback(async () => {
+    const { data: fields } = await supabase
+      .from('custom_fields')
+      .select('*')
+      .order('field_name');
+    if (!fields) return;
+    setCustomFields(fields);
+
+    const valuesByField: Record<string, string[]> = {};
+    await Promise.all(
+      fields.map(async (field) => {
+        const { data } = await supabase.rpc('get_custom_field_values', {
+          p_field_id: field.id,
+        });
+        valuesByField[field.id] = ((data ?? []) as { value: string }[]).map(
+          (r) => r.value
+        );
+      })
+    );
+    setCustomFieldValues(valuesByField);
+
+    // Drop selections referring to fields/values that no longer exist.
+    setSelectedCustomValues((prev) => {
+      const next: Record<string, string[]> = {};
+      let changed = false;
+      for (const [fieldId, values] of Object.entries(prev)) {
+        const available = new Set(valuesByField[fieldId] ?? []);
+        const pruned = values.filter((v) => available.has(v));
+        if (pruned.length > 0) next[fieldId] = pruned;
+        if (pruned.length !== values.length) changed = true;
+      }
+      return changed ? next : prev;
+    });
+  }, [supabase]);
+
   const fetchContacts = useCallback(async () => {
     const seq = ++fetchSeq.current;
     setLoading(true);
@@ -130,16 +173,22 @@ export default function ContactsPage() {
     const to = from + PAGE_SIZE - 1;
     const term = search.trim();
 
+    const customFilterGroups = Object.entries(selectedCustomValues)
+      .filter(([, values]) => values.length > 0)
+      .map(([field_id, values]) => ({ field_id, values }));
+
     let contactRows: Contact[];
     let count: number;
 
-    if (selectedTagIds.length > 0) {
-      // Tag filter active — resolve it server-side (join + distinct +
-      // windowed total count + pagination) so a tag covering many
-      // contacts can't silently truncate the result or overflow an IN
-      // clause. See migration 025_filter_contacts_by_tags.
-      const { data, error } = await supabase.rpc('filter_contacts_by_tags', {
-        p_tag_ids: selectedTagIds,
+    if (selectedTagIds.length > 0 || customFilterGroups.length > 0) {
+      // Tag and/or custom-field filters active — resolve server-side
+      // (join + distinct + windowed total count + pagination) so a
+      // filter value covering many contacts can't silently truncate
+      // the result or overflow an IN clause. See migrations
+      // 025_filter_contacts_by_tags and 037_filter_contacts_by_custom_fields.
+      const { data, error } = await supabase.rpc('filter_contacts_advanced', {
+        p_tag_ids: selectedTagIds.length > 0 ? selectedTagIds : null,
+        p_custom_filters: customFilterGroups.length > 0 ? customFilterGroups : null,
         p_search: term || null,
         p_limit: PAGE_SIZE,
         p_offset: from,
@@ -207,7 +256,7 @@ export default function ContactsPage() {
 
     setContacts(enriched);
     setLoading(false);
-  }, [supabase, page, search, selectedTagIds, tagsMap, t]);
+  }, [supabase, page, search, selectedTagIds, selectedCustomValues, tagsMap, t]);
 
   // Load-once-on-mount-ish data fetches. Each setter inside runs
   // inside an async promise completion (Supabase await), not
@@ -217,6 +266,11 @@ export default function ContactsPage() {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchTags();
   }, [fetchTags]);
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    fetchCustomFields();
+  }, [fetchCustomFields]);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -323,7 +377,14 @@ export default function ContactsPage() {
   const allTags = Object.values(tagsMap).sort((a, b) =>
     a.name.localeCompare(b.name)
   );
-  const hasActiveFilters = search.trim().length > 0 || selectedTagIds.length > 0;
+  const totalCustomFilterCount = Object.values(selectedCustomValues).reduce(
+    (sum, values) => sum + values.length,
+    0
+  );
+  const hasActiveFilters =
+    search.trim().length > 0 ||
+    selectedTagIds.length > 0 ||
+    totalCustomFilterCount > 0;
 
   function toggleTagFilter(tagId: string) {
     setSelectedTagIds((prev) =>
@@ -336,6 +397,32 @@ export default function ContactsPage() {
 
   function clearTagFilters() {
     setSelectedTagIds([]);
+    setPage(0);
+  }
+
+  // Custom-field filter helpers — same OR-within/AND-across shape as
+  // tags, keyed by field id instead of a single flat list.
+  function toggleCustomFilterValue(fieldId: string, value: string) {
+    setSelectedCustomValues((prev) => {
+      const current = prev[fieldId] ?? [];
+      const next = current.includes(value)
+        ? current.filter((v) => v !== value)
+        : [...current, value];
+      const updated = { ...prev };
+      if (next.length > 0) updated[fieldId] = next;
+      else delete updated[fieldId];
+      return updated;
+    });
+    setPage(0);
+  }
+
+  function clearCustomFilter(fieldId: string) {
+    setSelectedCustomValues((prev) => {
+      if (!prev[fieldId]) return prev;
+      const updated = { ...prev };
+      delete updated[fieldId];
+      return updated;
+    });
     setPage(0);
   }
 
@@ -460,7 +547,94 @@ export default function ContactsPage() {
               )}
             </PopoverContent>
           </Popover>
+
+          {customFields.map((field) => {
+            const values = customFieldValues[field.id] ?? [];
+            const selectedValues = selectedCustomValues[field.id] ?? [];
+            if (values.length === 0) return null;
+            return (
+              <Popover key={field.id}>
+                <PopoverTrigger
+                  render={
+                    <Button
+                      variant="outline"
+                      className="border-border text-muted-foreground hover:bg-muted shrink-0"
+                    />
+                  }
+                >
+                  <Filter className="size-4" />
+                  {field.field_name}
+                  {selectedValues.length > 0 && (
+                    <span className="ml-1 inline-flex items-center justify-center rounded-full bg-primary px-1.5 text-[10px] font-semibold text-primary-foreground">
+                      {selectedValues.length}
+                    </span>
+                  )}
+                </PopoverTrigger>
+                <PopoverContent align="start" className="w-64 p-0">
+                  <div className="flex items-center justify-between px-3 py-2 border-b border-border">
+                    <span className="text-sm font-medium text-popover-foreground">
+                      {field.field_name}
+                    </span>
+                    {selectedValues.length > 0 && (
+                      <button
+                        onClick={() => clearCustomFilter(field.id)}
+                        className="text-xs text-muted-foreground hover:text-foreground"
+                      >
+                        {t('clearAll')}
+                      </button>
+                    )}
+                  </div>
+                  <div className="max-h-64 overflow-y-auto py-1">
+                    {values.map((value) => (
+                      <label
+                        key={value}
+                        className="flex items-center gap-2.5 px-3 py-1.5 cursor-pointer hover:bg-muted/50"
+                      >
+                        <Checkbox
+                          checked={selectedValues.includes(value)}
+                          onCheckedChange={() =>
+                            toggleCustomFilterValue(field.id, value)
+                          }
+                          aria-label={`Filter by ${field.field_name}: ${value}`}
+                        />
+                        <span className="text-sm text-popover-foreground truncate">
+                          {value}
+                        </span>
+                      </label>
+                    ))}
+                  </div>
+                </PopoverContent>
+              </Popover>
+            );
+          })}
         </div>
+
+        {/* Active custom-field filter chips */}
+        {Object.entries(selectedCustomValues).map(([fieldId, values]) => {
+          if (values.length === 0) return null;
+          const field = customFields.find((f) => f.id === fieldId);
+          if (!field) return null;
+          return (
+            <div key={fieldId} className="flex flex-wrap items-center gap-1.5">
+              <span className="text-xs text-muted-foreground">{field.field_name}:</span>
+              {values.map((value) => (
+                <span
+                  key={value}
+                  className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-foreground"
+                >
+                  {value}
+                  <button
+                    onClick={() => toggleCustomFilterValue(fieldId, value)}
+                    aria-label={`Remove ${field.field_name} filter ${value}`}
+                    className="hover:opacity-70"
+                  >
+                    <X className="size-3" />
+                  </button>
+                </span>
+              ))}
+            </div>
+          );
+        })}
 
         {/* Active tag-filter chips */}
         {selectedTagIds.length > 0 && (
