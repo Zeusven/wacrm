@@ -65,7 +65,13 @@ export function serializeConversation(conv: Conversation): ApiConversation {
     contact: c
       ? {
           id: c.id,
-          phone: c.phone,
+          // Public API v1 contract keeps `phone: string` (unchanged) even
+          // though migration 038 made contacts.phone nullable in the DB —
+          // an external consumer parsing this JSON shouldn't have to
+          // handle a new null it never saw before. Email-only contacts
+          // (no phone on file) serialize as '' here, same as any other
+          // "no value" field already did pre-038.
+          phone: c.phone ?? '',
           name: c.name ?? null,
           email: c.email ?? null,
           company: c.company ?? null,

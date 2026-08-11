@@ -127,8 +127,8 @@ export function ContactSidebar({ contact }: ContactSidebarProps) {
     );
   }
 
-  const displayName = contact.name || contact.phone;
-  const initials = (displayName ?? "").charAt(0).toUpperCase();
+  const displayName = contact.name || contact.phone || contact.email || tThread("unknownContact");
+  const initials = displayName.charAt(0).toUpperCase();
 
   return (
     <div className="flex h-full w-70 flex-col border-l border-border bg-card">
