@@ -55,6 +55,12 @@ export function ContactForm({
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
   const [company, setCompany] = useState('');
+  // Migration 038 — commercial CRM fields. All optional: a Sistemas/IT
+  // contact discovered via LinkedIn can be created with only an email,
+  // no phone (see the phone/email OR-required check in handleSubmit).
+  const [profession, setProfession] = useState('');
+  const [linkedinUrl, setLinkedinUrl] = useState('');
+  const [contactType, setContactType] = useState('');
   const [saving, setSaving] = useState(false);
 
   // Duplicate-phone detection for NEW contacts. `exact` (same digits)
@@ -76,6 +82,9 @@ export function ContactForm({
       setPhone(contact?.phone ?? '');
       setEmail(contact?.email ?? '');
       setCompany(contact?.company ?? '');
+      setProfession(contact?.profession ?? '');
+      setLinkedinUrl(contact?.linkedin_url ?? '');
+      setContactType(contact?.contact_type ?? '');
       setSelectedTagIds(contactTags.map((ct) => ct.tag_id));
       setDupMatch(null);
       fetchTags();
@@ -125,8 +134,12 @@ export function ContactForm({
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
 
-    if (!phone.trim()) {
-      toast.error(t('phoneRequired'));
+    // Migration 038: phone is no longer mandatory — a Sistemas/IT/
+    // Gerencia contact discovered via a public professional channel
+    // can be created with only an email on file. Still require *one*
+    // of phone/email so a contact always has some way to be reached.
+    if (!phone.trim() && !email.trim()) {
+      toast.error(t('phoneOrEmailRequired'));
       return;
     }
 
@@ -154,9 +167,12 @@ export function ContactForm({
           .from('contacts')
           .update({
             name: name.trim() || null,
-            phone: phone.trim(),
+            phone: phone.trim() || null,
             email: email.trim() || null,
             company: company.trim() || null,
+            profession: profession.trim() || null,
+            linkedin_url: linkedinUrl.trim() || null,
+            contact_type: contactType.trim() || null,
             updated_at: new Date().toISOString(),
           })
           .eq('id', contactId);
@@ -168,9 +184,12 @@ export function ContactForm({
             user_id: user.id,
             account_id: accountId,
             name: name.trim() || null,
-            phone: phone.trim(),
+            phone: phone.trim() || null,
             email: email.trim() || null,
             company: company.trim() || null,
+            profession: profession.trim() || null,
+            linkedin_url: linkedinUrl.trim() || null,
+            contact_type: contactType.trim() || null,
           })
           .select('id')
           .single();
@@ -319,6 +338,46 @@ export function ContactForm({
               value={company}
               onChange={(e) => setCompany(e.target.value)}
               placeholder={t('companyPlaceholder')}
+              className="bg-muted border-border text-foreground placeholder:text-muted-foreground"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="cf-profession" className="text-muted-foreground">
+              {t('professionLabel')}
+            </Label>
+            <Input
+              id="cf-profession"
+              value={profession}
+              onChange={(e) => setProfession(e.target.value)}
+              placeholder={t('professionPlaceholder')}
+              className="bg-muted border-border text-foreground placeholder:text-muted-foreground"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="cf-contact-type" className="text-muted-foreground">
+              {t('contactTypeLabel')}
+            </Label>
+            <Input
+              id="cf-contact-type"
+              value={contactType}
+              onChange={(e) => setContactType(e.target.value)}
+              placeholder={t('contactTypePlaceholder')}
+              className="bg-muted border-border text-foreground placeholder:text-muted-foreground"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="cf-linkedin" className="text-muted-foreground">
+              {t('linkedinLabel')}
+            </Label>
+            <Input
+              id="cf-linkedin"
+              type="url"
+              value={linkedinUrl}
+              onChange={(e) => setLinkedinUrl(e.target.value)}
+              placeholder={t('linkedinPlaceholder')}
               className="bg-muted border-border text-foreground placeholder:text-muted-foreground"
             />
           </div>

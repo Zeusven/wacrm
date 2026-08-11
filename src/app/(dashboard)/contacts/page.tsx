@@ -15,6 +15,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Switch } from '@/components/ui/switch';
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -75,8 +76,12 @@ export default function ContactsPage() {
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(0);
   const [totalCount, setTotalCount] = useState(0);
-  // Tag filter — contacts shown must have ANY of these tags (OR).
+  // Tag filter — contacts shown must have ANY of these tags (OR) by
+  // default, or ALL of them (AND) when tagMatchMode is 'and'. Migration
+  // 038 added the `p_tag_mode` param to filter_contacts_advanced for
+  // this — e.g. institucion=Hospital Español AND area=Sistemas.
   const [selectedTagIds, setSelectedTagIds] = useState<string[]>([]);
+  const [tagMatchMode, setTagMatchMode] = useState<'or' | 'and'>('or');
 
   // Custom-field filters — one entry per field the account has defined
   // (e.g. "Especialidad", "Consultorio"). Within a field, ANY selected
@@ -192,6 +197,7 @@ export default function ContactsPage() {
         p_search: term || null,
         p_limit: PAGE_SIZE,
         p_offset: from,
+        p_tag_mode: tagMatchMode,
       });
       if (seq !== fetchSeq.current) return; // superseded by a newer fetch
       if (error) {
@@ -256,7 +262,7 @@ export default function ContactsPage() {
 
     setContacts(enriched);
     setLoading(false);
-  }, [supabase, page, search, selectedTagIds, selectedCustomValues, tagsMap, t]);
+  }, [supabase, page, search, selectedTagIds, tagMatchMode, selectedCustomValues, tagsMap, t]);
 
   // Load-once-on-mount-ish data fetches. Each setter inside runs
   // inside an async promise completion (Supabase await), not
@@ -517,6 +523,21 @@ export default function ContactsPage() {
                     {t('clearAll')}
                   </button>
                 )}
+              </div>
+              <div className="flex items-center justify-between gap-2 px-3 py-2 border-b border-border">
+                <span className="text-xs text-muted-foreground">
+                  {tagMatchMode === 'and' ? t('tagMatchAllHint') : t('tagMatchAnyHint')}
+                </span>
+                <div className="flex items-center gap-1.5">
+                  <Switch
+                    checked={tagMatchMode === 'and'}
+                    onCheckedChange={(checked) => setTagMatchMode(checked ? 'and' : 'or')}
+                    aria-label={t('tagMatchAllToggle')}
+                  />
+                  <span className="text-xs font-medium text-popover-foreground">
+                    {t('tagMatchAllToggle')}
+                  </span>
+                </div>
               </div>
               {allTags.length === 0 ? (
                 <p className="px-3 py-4 text-sm text-muted-foreground text-center">
