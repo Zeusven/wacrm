@@ -1471,6 +1471,13 @@ function StepEditor({
               className="bg-muted text-foreground"
             />
           </FieldBlock>
+          <FieldBlock label={t("config.headersLabel")}>
+            <WebhookHeadersField
+              value={(cfg.headers as Record<string, string>) ?? {}}
+              onChange={(headers) => set({ headers })}
+              placeholder={t("config.placeholderHeaders")}
+            />
+          </FieldBlock>
           <FieldBlock label={t("config.bodyTemplateLabel")}>
             <Textarea
               value={(cfg.body_template as string) ?? ""}
@@ -1502,6 +1509,63 @@ function FieldBlock({
     <div className="mb-2 last:mb-0">
       <label className="mb-1 block text-xs font-medium text-muted-foreground">{label}</label>
       {children}
+    </div>
+  )
+}
+
+// send_webhook's `headers` is a Record<string, string> in the DB, but the
+// user types free-form JSON — invalid mid-edit JSON is expected while
+// typing (e.g. an unclosed brace), so raw text is buffered in local state
+// and only pushed up to the step config once it parses as a flat string
+// object. Losing keystrokes to a premature parse failure would be worse
+// than a brief window where `cfg.headers` lags behind what's on screen.
+function WebhookHeadersField({
+  value,
+  onChange,
+  placeholder,
+}: {
+  value: Record<string, string>
+  onChange: (headers: Record<string, string>) => void
+  placeholder: string
+}) {
+  const [text, setText] = useState(() =>
+    Object.keys(value).length > 0 ? JSON.stringify(value, null, 2) : ""
+  )
+  const [error, setError] = useState<string | null>(null)
+
+  return (
+    <div>
+      <Textarea
+        value={text}
+        onChange={(e) => {
+          const raw = e.target.value
+          setText(raw)
+          if (raw.trim() === "") {
+            setError(null)
+            onChange({})
+            return
+          }
+          try {
+            const parsed: unknown = JSON.parse(raw)
+            const isFlatStringMap =
+              typeof parsed === "object" &&
+              parsed !== null &&
+              !Array.isArray(parsed) &&
+              Object.values(parsed).every((v) => typeof v === "string")
+            if (!isFlatStringMap) {
+              setError("Must be a flat JSON object of string values")
+              return
+            }
+            setError(null)
+            onChange(parsed as Record<string, string>)
+          } catch {
+            setError("Invalid JSON")
+          }
+        }}
+        placeholder={placeholder}
+        className="min-h-16 bg-muted font-mono text-xs text-foreground"
+      />
+      {error && <p className="mt-1 text-xs text-destructive">{error}</p>}
     </div>
   )
 }
