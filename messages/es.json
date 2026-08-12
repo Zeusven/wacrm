@@ -17,6 +17,7 @@
   "Sidebar": {
     "title": "CRM para WhatsApp",
     "dashboard": "Panel",
+    "today": "Hoy",
     "inbox": "Bandeja de entrada",
     "notifications": "Notificaciones",
     "contacts": "Contactos",
@@ -43,6 +44,7 @@
   },
   "Header": {
     "dashboard": "Panel",
+    "today": "Hoy",
     "inbox": "Bandeja de entrada",
     "notifications": "Notificaciones",
     "contacts": "Contactos",
@@ -299,7 +301,8 @@
         "name": "Nombre",
         "phone": "Teléfono",
         "email": "Email",
-        "company": "Empresa",
+        "organization": "Institución",
+        "contactType": "Tipo",
         "tags": "Etiquetas",
         "createdAt": "Creado"
       },
@@ -371,6 +374,7 @@
         "notes": "Notas",
         "custom": "Campos personalizados",
         "deals": "Negocios",
+        "organization": "Institución",
         "tags": "Etiquetas",
         "noTags": "Sin etiquetas",
         "noDeals": "Sin negocios",
@@ -404,6 +408,15 @@
       },
       "dealsTab": {
         "noDeals": "Todavía no hay negocios"
+      },
+      "orgTab": {
+        "noOrganizations": "Sin institución vinculada",
+        "addOrganization": "Vincular institución",
+        "searchPlaceholder": "Buscar o crear institución...",
+        "cargo": "Cargo",
+        "area": "Área",
+        "link": "Vincular",
+        "linkSuccess": "Institución vinculada"
       },
       "tagsTab": {
         "clickTagDesc": "Tocá una etiqueta para agregarla o quitarla de este contacto.",
@@ -1721,6 +1734,20 @@
     "cancel": "Cancelar",
     "delete": "Eliminar",
     "decisionMap": "Mapa de decisión",
+    "briefingTitle": "Briefing",
+    "briefingNextAction": "Próxima acción",
+    "briefingFollowUp": "Hacer seguimiento",
+    "briefingNoNextAction": "Sin próxima acción definida",
+    "briefingTopContact": "Contacto principal",
+    "briefingNoContacts": "Sin contactos mapeados todavía",
+    "briefingKnown": "Qué sabemos",
+    "briefingPeopleMapped": "personas mapeadas",
+    "briefingHasDecisor": "tiene decisor identificado",
+    "briefingNoDecisor": "sin decisor identificado todavía",
+    "briefingMeetingsLogged": "reuniones registradas",
+    "briefingMissing": "Qué falta",
+    "briefingDecisorsNoChannel": "decisor(es) sin canal directo",
+    "briefingNoMeetingsYet": "Sin reuniones registradas todavía",
     "addContact": "Vincular contacto",
     "cargo": "Cargo",
     "area": "Área",
@@ -1749,5 +1776,27 @@
     "saveError": "No se pudo guardar la institución",
     "createSuccess": "Institución creada",
     "linkContactSuccess": "Contacto vinculado"
+  },
+  "Today": {
+    "title": "Hoy",
+    "loadError": "No se pudo cargar la vista de hoy",
+    "statDue": "Vencidos/hoy",
+    "statOrgsWithoutContacts": "Instituciones sin contactos",
+    "statDecisorsIdentified": "Decisores identificados",
+    "statDecisorsMissingChannel": "Decisores sin canal",
+    "dueTitle": "Vencidos o para hoy",
+    "colOrganization": "Institución",
+    "colNextAction": "Próxima acción",
+    "colDate": "Fecha",
+    "colStatus": "Estado",
+    "noDue": "Nada pendiente — estás al día",
+    "orgsWithoutContactsTitle": "Instituciones sin ningún contacto todavía",
+    "colType": "Tipo",
+    "colPotential": "Potencial",
+    "noGaps": "Todas las instituciones tienen al menos un contacto",
+    "decisorsMissingChannelTitle": "Decisores sin canal directo",
+    "colContact": "Contacto",
+    "colDecisionLevel": "Nivel de decisión",
+    "noDecisorsMissingChannel": "Todos los decisores tienen teléfono o email cargado"
   }
 }

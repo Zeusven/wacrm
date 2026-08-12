@@ -42,6 +42,21 @@ export interface AutomationContext {
   agent_id?: string
   /** Button / list-row id the customer tapped, for interactive_reply. */
   interactive_reply_id?: string
+  /** Meta's WhatsApp message id (`messages[].id` from the webhook payload).
+   *  Passed through so a send_webhook target (e.g. an n8n workflow) can
+   *  reference the exact inbound message without a second lookup. */
+  whatsapp_message_id?: string
+  /** Inbound message type as reported by Meta ('text' | 'audio' | 'image' |
+   *  ...). Lets a send_webhook consumer branch on content without
+   *  re-deriving it from media_id's presence. */
+  message_type?: string
+  /** Meta media id for image/video/document/audio/sticker messages (the
+   *  raw id from `message.<type>.id`, NOT the WACRM-internal proxy URL
+   *  used by the inbox — that route requires a logged-in session and
+   *  can't be called server-to-server). A send_webhook consumer with its
+   *  own Meta access token calls the Graph API media endpoint directly
+   *  with this id. Undefined for text/interactive/location/reaction. */
+  media_id?: string
 }
 
 export interface DispatchInput {

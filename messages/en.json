@@ -17,6 +17,7 @@
   "Sidebar": {
     "title": "CRM Template for WhatsApp",
     "dashboard": "Dashboard",
+    "today": "Today",
     "inbox": "Inbox",
     "notifications": "Notifications",
     "contacts": "Contacts",
@@ -43,6 +44,7 @@
   },
   "Header": {
     "dashboard": "Dashboard",
+    "today": "Today",
     "inbox": "Inbox",
     "notifications": "Notifications",
     "contacts": "Contacts",
@@ -299,7 +301,8 @@
         "name": "Name",
         "phone": "Phone",
         "email": "Email",
-        "company": "Company",
+        "organization": "Organization",
+        "contactType": "Type",
         "tags": "Tags",
         "createdAt": "Created"
       },
@@ -371,6 +374,7 @@
         "notes": "Notes",
         "custom": "Custom Fields",
         "deals": "Deals",
+        "organization": "Institution",
         "tags": "Tags",
         "noTags": "No tags",
         "noDeals": "No deals",
@@ -404,6 +408,15 @@
       },
       "dealsTab": {
         "noDeals": "No deals yet"
+      },
+      "orgTab": {
+        "noOrganizations": "No linked institution yet",
+        "addOrganization": "Link institution",
+        "searchPlaceholder": "Search or create institution...",
+        "cargo": "Role",
+        "area": "Area",
+        "link": "Link",
+        "linkSuccess": "Institution linked"
       },
       "tagsTab": {
         "clickTagDesc": "Click a tag to add or remove it from this contact.",
@@ -1721,6 +1734,20 @@
     "cancel": "Cancel",
     "delete": "Delete",
     "decisionMap": "Decision map",
+    "briefingTitle": "Briefing",
+    "briefingNextAction": "Next action",
+    "briefingFollowUp": "Follow up",
+    "briefingNoNextAction": "No next action set",
+    "briefingTopContact": "Top contact",
+    "briefingNoContacts": "No contacts mapped yet",
+    "briefingKnown": "What we know",
+    "briefingPeopleMapped": "people mapped",
+    "briefingHasDecisor": "has a decision-maker identified",
+    "briefingNoDecisor": "no decision-maker identified yet",
+    "briefingMeetingsLogged": "meetings logged",
+    "briefingMissing": "What's missing",
+    "briefingDecisorsNoChannel": "decision-maker(s) without a direct channel",
+    "briefingNoMeetingsYet": "No meetings logged yet",
     "addContact": "Link contact",
     "cargo": "Role",
     "area": "Area",
@@ -1749,5 +1776,27 @@
     "saveError": "Could not save institution",
     "createSuccess": "Institution created",
     "linkContactSuccess": "Contact linked"
+  },
+  "Today": {
+    "title": "Today",
+    "loadError": "Could not load today's view",
+    "statDue": "Due today/overdue",
+    "statOrgsWithoutContacts": "Institutions without contacts",
+    "statDecisorsIdentified": "Decision-makers identified",
+    "statDecisorsMissingChannel": "Decision-makers missing a channel",
+    "dueTitle": "Due today or overdue",
+    "colOrganization": "Institution",
+    "colNextAction": "Next action",
+    "colDate": "Date",
+    "colStatus": "Status",
+    "noDue": "Nothing due — you're caught up",
+    "orgsWithoutContactsTitle": "Institutions without any contact yet",
+    "colType": "Type",
+    "colPotential": "Potential",
+    "noGaps": "Every institution has at least one contact",
+    "decisorsMissingChannelTitle": "Decision-makers without a direct channel",
+    "colContact": "Contact",
+    "colDecisionLevel": "Decision level",
+    "noDecisorsMissingChannel": "Every decision-maker has a phone or email on file"
   }
 }

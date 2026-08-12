@@ -40,7 +40,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Building2, Plus, Loader2, Users, CalendarClock } from 'lucide-react';
+import { Building2, Plus, Loader2, Users, CalendarClock, Target } from 'lucide-react';
 import { useCan } from '@/hooks/use-can';
 import { GatedButton } from '@/components/ui/gated-button';
 
@@ -54,6 +54,60 @@ const RELATIONSHIP_TYPES: RelationshipType[] = [
   'REFERENTE', 'PROVEEDOR', 'EX_EMPLEADO', 'OTRO',
 ];
 const MEETING_TYPES: MeetingType[] = ['PRESENCIAL', 'TELEFONICA', 'VIDEOLLAMADA'];
+
+// Rank used to pick the "most senior" mapped decisor and to flag
+// which decision-level contacts still need a direct channel found —
+// deliberately deterministic (no AI), same criteria the /today
+// cockpit uses, so a briefing never contradicts the daily view.
+const DECISION_RANK: Record<DecisionLevel, number> = {
+  DECISOR_FINAL: 0,
+  SOCIO_PROPIETARIO: 1,
+  DECISOR: 2,
+  DIRECCION: 3,
+  IT_DECISOR: 4,
+  COMPRAS: 5,
+  INFLUENCIADOR: 6,
+  IT_INFLUENCIADOR: 7,
+  REFERENTE: 8,
+  NO_DETERMINADO: 9,
+};
+const HIGH_DECISION_LEVELS: DecisionLevel[] = [
+  'DECISOR', 'DECISOR_FINAL', 'SOCIO_PROPIETARIO', 'IT_DECISOR',
+];
+
+interface Briefing {
+  topContact: OrganizationDecisionMapRow | null;
+  hasHighLevelDecisor: boolean;
+  decisorsMissingChannel: OrganizationDecisionMapRow[];
+  nextMeeting: Meeting | null;
+  meetingCount: number;
+}
+
+function computeBriefing(
+  decisionMap: OrganizationDecisionMapRow[],
+  meetings: Meeting[]
+): Briefing {
+  const sorted = [...decisionMap].sort(
+    (a, b) => DECISION_RANK[a.decision_level] - DECISION_RANK[b.decision_level]
+  );
+  const decisorsMissingChannel = decisionMap.filter(
+    (row) =>
+      HIGH_DECISION_LEVELS.includes(row.decision_level) &&
+      !row.contact_phone &&
+      !row.contact_email
+  );
+  const upcoming = meetings
+    .filter((m) => m.next_action_date && m.status !== 'CANCELADA')
+    .sort((a, b) => (a.next_action_date! < b.next_action_date! ? -1 : 1));
+
+  return {
+    topContact: sorted[0] ?? null,
+    hasHighLevelDecisor: decisionMap.some((row) => HIGH_DECISION_LEVELS.includes(row.decision_level)),
+    decisorsMissingChannel,
+    nextMeeting: upcoming[0] ?? null,
+    meetingCount: meetings.length,
+  };
+}
 
 interface ContactOption {
   id: string;
@@ -204,6 +258,8 @@ export default function OrganizationDetailPage({
     );
   }
 
+  const briefing = computeBriefing(decisionMap, meetings);
+
   return (
     <div className="flex flex-1 flex-col gap-4 p-4 md:p-6">
       <div className="flex items-center gap-2">
@@ -215,6 +271,60 @@ export default function OrganizationDetailPage({
         {[organization.org_type, organization.locality, organization.province]
           .filter(Boolean)
           .join(' · ') || '—'}
+      </div>
+
+      <div className="rounded-md border bg-muted/30 p-4">
+        <div className="mb-2 flex items-center gap-2 text-sm font-medium">
+          <Target className="h-4 w-4 text-muted-foreground" />
+          {t('briefingTitle')}
+        </div>
+        <div className="grid gap-2 text-sm md:grid-cols-2">
+          <div>
+            <span className="text-muted-foreground">{t('briefingNextAction')}: </span>
+            {briefing.nextMeeting ? (
+              <span className="font-medium">
+                {briefing.nextMeeting.next_action ?? t('briefingFollowUp')}
+                {briefing.nextMeeting.next_action_date &&
+                  ` (${briefing.nextMeeting.next_action_date})`}
+              </span>
+            ) : (
+              <span className="text-muted-foreground">{t('briefingNoNextAction')}</span>
+            )}
+          </div>
+          <div>
+            <span className="text-muted-foreground">{t('briefingTopContact')}: </span>
+            {briefing.topContact ? (
+              <span className="font-medium">
+                {briefing.topContact.contact_name ?? briefing.topContact.contact_phone} (
+                {briefing.topContact.decision_level})
+              </span>
+            ) : (
+              <span className="text-muted-foreground">{t('briefingNoContacts')}</span>
+            )}
+          </div>
+          <div>
+            <span className="text-muted-foreground">{t('briefingKnown')}: </span>
+            {decisionMap.length} {t('briefingPeopleMapped')}
+            {briefing.hasHighLevelDecisor
+              ? `, ${t('briefingHasDecisor')}`
+              : `, ${t('briefingNoDecisor')}`}
+            {briefing.meetingCount > 0
+              ? `, ${briefing.meetingCount} ${t('briefingMeetingsLogged')}`
+              : ''}
+          </div>
+          <div>
+            <span className="text-muted-foreground">{t('briefingMissing')}: </span>
+            {briefing.decisorsMissingChannel.length > 0 ? (
+              <span className="font-medium text-amber-600 dark:text-amber-400">
+                {briefing.decisorsMissingChannel.length} {t('briefingDecisorsNoChannel')}
+              </span>
+            ) : briefing.meetingCount === 0 ? (
+              <span className="text-muted-foreground">{t('briefingNoMeetingsYet')}</span>
+            ) : (
+              <span className="text-muted-foreground">—</span>
+            )}
+          </div>
+        </div>
       </div>
 
       <Tabs defaultValue="decisionMap">

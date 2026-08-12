@@ -781,6 +781,16 @@ async function processMessage(
   // listens to only one trigger runs only when that trigger matches.
   if (contactOutcome.wasCreated) automationTriggers.unshift('new_contact_created')
   if (isFirstInboundMessage) automationTriggers.unshift('first_inbound_message')
+  // Raw Meta media id (not the WACRM proxy URL in `mediaUrl`) — a
+  // send_webhook automation target with its own Meta access token needs
+  // this to call the Graph API media endpoint directly.
+  const inboundMediaId =
+    message.audio?.id ??
+    message.image?.id ??
+    message.video?.id ??
+    message.document?.id ??
+    message.sticker?.id ??
+    undefined
   for (const triggerType of automationTriggers) {
     runAutomationsForTrigger({
       accountId,
@@ -792,6 +802,9 @@ async function processMessage(
         // Only set on interactive taps; drives the interactive_reply
         // trigger's exact-id match.
         interactive_reply_id: interactiveReplyId ?? undefined,
+        whatsapp_message_id: message.id,
+        message_type: message.type,
+        media_id: inboundMediaId,
       },
     }).catch((err) => console.error('[automations] dispatch failed:', err))
   }

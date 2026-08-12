@@ -14,6 +14,7 @@ import {
   Crown,
   GitBranch,
   LayoutDashboard,
+  ListChecks,
   LogOut,
   MessageSquare,
   Radio,
@@ -92,6 +93,7 @@ interface NavItem {
 
 const navItems: NavItem[] = [
   { href: "/dashboard", labelKey: "dashboard", icon: LayoutDashboard },
+  { href: "/today", labelKey: "today", icon: ListChecks },
   { href: "/inbox", labelKey: "inbox", icon: MessageSquare },
   { href: "/notifications", labelKey: "notifications", icon: Bell },
   { href: "/contacts", labelKey: "contacts", icon: Users },

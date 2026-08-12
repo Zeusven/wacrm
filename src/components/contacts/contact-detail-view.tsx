@@ -6,7 +6,7 @@ import { addContactTag, deleteContactTag } from '@/lib/contacts/tag-api';
 import { useAuth } from '@/hooks/use-auth';
 import { formatCurrency } from '@/lib/currency';
 import { toast } from 'sonner';
-import type { Contact, Tag, ContactTag, ContactNote, CustomField, ContactCustomValue, Deal, MessageTemplate } from '@/types';
+import type { Contact, Tag, ContactTag, ContactNote, CustomField, ContactCustomValue, Deal, MessageTemplate, OrganizationContact, DecisionLevel } from '@/types';
 import {
   TemplatePicker,
   type TemplateSendValues,
@@ -27,6 +27,13 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {
   Phone,
   Mail,
   Building2,
@@ -41,6 +48,11 @@ import {
   LayoutTemplate,
 } from 'lucide-react';
 import { useTranslations } from 'next-intl';
+
+const DECISION_LEVELS: DecisionLevel[] = [
+  'NO_DETERMINADO', 'INFLUENCIADOR', 'REFERENTE', 'DECISOR', 'DECISOR_FINAL',
+  'SOCIO_PROPIETARIO', 'DIRECCION', 'COMPRAS', 'IT_DECISOR', 'IT_INFLUENCIADOR',
+];
 
 interface ContactDetailViewProps {
   open: boolean;
@@ -96,6 +108,20 @@ export function ContactDetailView({
   // Deals tab
   const [deals, setDeals] = useState<Deal[]>([]);
   const [loadingDeals, setLoadingDeals] = useState(false);
+
+  // Institución tab (migration 038) — link this contact to an
+  // organization with cargo/área/nivel de decisión. Closes the "estoy
+  // en la calle, cargo la tarjeta" loop in one screen instead of
+  // requiring a trip through /organizations/[id] first.
+  const [orgLinks, setOrgLinks] = useState<OrganizationContact[]>([]);
+  const [loadingOrgLinks, setLoadingOrgLinks] = useState(false);
+  const [orgQuery, setOrgQuery] = useState('');
+  const [orgOptions, setOrgOptions] = useState<{ id: string; name: string }[]>([]);
+  const [selectedOrgId, setSelectedOrgId] = useState('');
+  const [linkCargo, setLinkCargo] = useState('');
+  const [linkArea, setLinkArea] = useState('');
+  const [linkDecisionLevel, setLinkDecisionLevel] = useState<DecisionLevel>('NO_DETERMINADO');
+  const [savingOrgLink, setSavingOrgLink] = useState(false);
 
   const fetchContact = useCallback(async () => {
     if (!contactId) return;
@@ -180,6 +206,78 @@ export function ContactDetailView({
     setLoadingDeals(false);
   }, [contactId, supabase]);
 
+  const fetchOrgLinks = useCallback(async () => {
+    if (!contactId) return;
+    setLoadingOrgLinks(true);
+    const { data } = await supabase
+      .from('organization_contacts')
+      .select('*, organization:organizations(*)')
+      .eq('contact_id', contactId)
+      .order('created_at', { ascending: false });
+    setOrgLinks((data ?? []) as OrganizationContact[]);
+    setLoadingOrgLinks(false);
+  }, [contactId, supabase]);
+
+  useEffect(() => {
+    const timeout = setTimeout(async () => {
+      if (!orgQuery.trim()) {
+        setOrgOptions([]);
+        return;
+      }
+      const { data } = await supabase
+        .from('organizations')
+        .select('id, name')
+        .ilike('name', `%${orgQuery}%`)
+        .order('name', { ascending: true })
+        .limit(10);
+      setOrgOptions((data ?? []) as { id: string; name: string }[]);
+    }, 200);
+    return () => clearTimeout(timeout);
+  }, [orgQuery, supabase]);
+
+  async function handleLinkOrganization() {
+    if (!contactId) return;
+    const name = orgQuery.trim();
+    if (!selectedOrgId && !name) return;
+    setSavingOrgLink(true);
+    try {
+      let organizationId = selectedOrgId;
+      if (!organizationId) {
+        const createRes = await fetch('/api/organizations', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name }),
+        });
+        const createBody = await createRes.json();
+        if (!createRes.ok) throw new Error(createBody.error ?? 'Error');
+        organizationId = createBody.organization.id;
+      }
+      const linkRes = await fetch(`/api/organizations/${organizationId}/contacts`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contact_id: contactId,
+          cargo: linkCargo || null,
+          area: linkArea || null,
+          decision_level: linkDecisionLevel,
+        }),
+      });
+      const linkBody = await linkRes.json();
+      if (!linkRes.ok) throw new Error(linkBody.error ?? 'Error');
+      toast.success(t('orgTab.linkSuccess', { fallback: 'Institución vinculada' }));
+      setOrgQuery('');
+      setSelectedOrgId('');
+      setLinkCargo('');
+      setLinkArea('');
+      setLinkDecisionLevel('NO_DETERMINADO');
+      await fetchOrgLinks();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Error');
+    } finally {
+      setSavingOrgLink(false);
+    }
+  }
+
   useEffect(() => {
     if (open && contactId) {
       fetchContact();
@@ -187,8 +285,9 @@ export function ContactDetailView({
       fetchNotes();
       fetchCustomFields();
       fetchDeals();
+      fetchOrgLinks();
     }
-  }, [open, contactId, fetchContact, fetchTags, fetchNotes, fetchCustomFields, fetchDeals]);
+  }, [open, contactId, fetchContact, fetchTags, fetchNotes, fetchCustomFields, fetchDeals, fetchOrgLinks]);
 
   async function copyPhone() {
     if (!contact) return;
@@ -482,6 +581,12 @@ export function ContactDetailView({
                 >
                   {t('tabs.deals')}
                 </TabsTrigger>
+                <TabsTrigger
+                  value="organization"
+                  className="data-active:bg-muted data-active:text-primary text-muted-foreground"
+                >
+                  {t('tabs.organization', { fallback: 'Institución' })}
+                </TabsTrigger>
               </TabsList>
 
               {/* Details Tab */}
@@ -743,6 +848,116 @@ export function ContactDetailView({
                     ))}
                   </div>
                 )}
+              </TabsContent>
+
+              {/* Institución Tab (migration 038) */}
+              <TabsContent value="organization" className="flex-1 overflow-y-auto px-4 py-3">
+                <div className="space-y-4">
+                  {loadingOrgLinks ? (
+                    <div className="flex items-center justify-center py-8">
+                      <Loader2 className="size-5 animate-spin text-primary" />
+                    </div>
+                  ) : orgLinks.length === 0 ? (
+                    <p className="text-xs text-muted-foreground">
+                      {t('orgTab.noOrganizations', { fallback: 'Sin institución vinculada' })}
+                    </p>
+                  ) : (
+                    <div className="space-y-2">
+                      {orgLinks.map((link) => (
+                        <div
+                          key={link.id}
+                          className="rounded-lg border border-border bg-muted/50 p-3"
+                        >
+                          <div className="flex items-center gap-1.5 text-sm font-medium text-foreground">
+                            <Building2 className="size-3.5 text-muted-foreground" />
+                            {link.organization?.name}
+                          </div>
+                          <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
+                            {link.cargo && <span>{link.cargo}</span>}
+                            {link.area && <span>{link.area}</span>}
+                            <span>{link.decision_level}</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  <div className="space-y-2 border-t border-border pt-3">
+                    <Label className="text-muted-foreground text-xs">
+                      {t('orgTab.addOrganization', { fallback: 'Vincular institución' })}
+                    </Label>
+                    <Input
+                      placeholder={t('orgTab.searchPlaceholder', {
+                        fallback: 'Buscar o crear institución...',
+                      })}
+                      value={orgQuery}
+                      onChange={(e) => {
+                        setOrgQuery(e.target.value);
+                        setSelectedOrgId('');
+                      }}
+                      className="bg-muted border-border text-foreground h-8 text-sm"
+                    />
+                    {orgOptions.length > 0 && !selectedOrgId && (
+                      <div className="rounded-md border border-border bg-popover">
+                        {orgOptions.map((opt) => (
+                          <button
+                            key={opt.id}
+                            type="button"
+                            onClick={() => {
+                              setSelectedOrgId(opt.id);
+                              setOrgQuery(opt.name);
+                              setOrgOptions([]);
+                            }}
+                            className="block w-full px-2.5 py-1.5 text-left text-xs text-popover-foreground hover:bg-muted"
+                          >
+                            {opt.name}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                    <div className="grid grid-cols-2 gap-2">
+                      <Input
+                        placeholder={t('orgTab.cargo', { fallback: 'Cargo' })}
+                        value={linkCargo}
+                        onChange={(e) => setLinkCargo(e.target.value)}
+                        className="bg-muted border-border text-foreground h-8 text-sm"
+                      />
+                      <Input
+                        placeholder={t('orgTab.area', { fallback: 'Área' })}
+                        value={linkArea}
+                        onChange={(e) => setLinkArea(e.target.value)}
+                        className="bg-muted border-border text-foreground h-8 text-sm"
+                      />
+                    </div>
+                    <Select
+                      value={linkDecisionLevel}
+                      onValueChange={(v) => setLinkDecisionLevel((v ?? 'NO_DETERMINADO') as DecisionLevel)}
+                    >
+                      <SelectTrigger className="h-8 text-sm">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {DECISION_LEVELS.map((d) => (
+                          <SelectItem key={d} value={d}>
+                            {d}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Button
+                      size="sm"
+                      className="w-full"
+                      disabled={savingOrgLink || (!selectedOrgId && !orgQuery.trim())}
+                      onClick={handleLinkOrganization}
+                    >
+                      {savingOrgLink ? (
+                        <Loader2 className="size-4 animate-spin" />
+                      ) : (
+                        t('orgTab.link', { fallback: 'Vincular' })
+                      )}
+                    </Button>
+                  </div>
+                </div>
               </TabsContent>
             </Tabs>
           </div>

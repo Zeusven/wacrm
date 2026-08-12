@@ -63,6 +63,10 @@ const PAGE_SIZE = 25;
 
 interface ContactWithTags extends Contact {
   tags?: Tag[];
+  /** Name of the linked organization (migration 038), if any. When a
+   *  contact is linked to more than one, the row marked `is_primary`
+   *  wins; otherwise the first match. */
+  organization_name?: string | null;
 }
 
 export default function ContactsPage() {
@@ -253,11 +257,41 @@ export default function ContactsPage() {
       tagsByContact[ct.contact_id].push(ct.tag_id);
     });
 
+    // Fetch linked organizations for these contacts (migration 038) —
+    // same batched-query shape as the tags fetch above, so a filtered
+    // page of contacts still resolves in one extra round trip instead
+    // of N+1 queries.
+    const { data: orgLinks } = await supabase
+      .from('organization_contacts')
+      .select('contact_id, is_primary, organization:organizations(name)')
+      .in('contact_id', contactIds);
+    if (seq !== fetchSeq.current) return; // superseded by a newer fetch
+
+    // Supabase infers the embedded `organization:organizations(name)` relation
+    // as an array from the select-string alone (no generated Database types in
+    // this project to tell it the FK is to-one) — handle both shapes so a
+    // runtime array doesn't silently make every row's institution blank.
+    type OrgLinkRow = {
+      contact_id: string;
+      is_primary: boolean;
+      organization: { name: string } | { name: string }[] | null;
+    };
+    const orgNameByContact: Record<string, string> = {};
+    ((orgLinks ?? []) as OrgLinkRow[]).forEach((link) => {
+      const org = Array.isArray(link.organization) ? link.organization[0] : link.organization;
+      const name = org?.name;
+      if (!name) return;
+      if (!orgNameByContact[link.contact_id] || link.is_primary) {
+        orgNameByContact[link.contact_id] = name;
+      }
+    });
+
     const enriched: ContactWithTags[] = contactRows.map((c) => ({
       ...c,
       tags: (tagsByContact[c.id] ?? [])
         .map((tid) => tagsMap[tid])
         .filter(Boolean),
+      organization_name: orgNameByContact[c.id] ?? null,
     }));
 
     setContacts(enriched);
@@ -739,7 +773,8 @@ export default function ContactsPage() {
               <TableHead className="text-muted-foreground">{t('tableColumns.name')}</TableHead>
               <TableHead className="text-muted-foreground">{t('tableColumns.phone')}</TableHead>
               <TableHead className="text-muted-foreground hidden md:table-cell">{t('tableColumns.email')}</TableHead>
-              <TableHead className="text-muted-foreground hidden lg:table-cell">{t('tableColumns.company')}</TableHead>
+              <TableHead className="text-muted-foreground hidden lg:table-cell">{t('tableColumns.organization')}</TableHead>
+              <TableHead className="text-muted-foreground hidden lg:table-cell">{t('tableColumns.contactType')}</TableHead>
               <TableHead className="text-muted-foreground hidden md:table-cell">{t('tableColumns.tags')}</TableHead>
               <TableHead className="text-muted-foreground hidden lg:table-cell">{t('tableColumns.createdAt')}</TableHead>
               <TableHead className="text-muted-foreground w-12" />
@@ -805,7 +840,10 @@ export default function ContactsPage() {
                     {contact.email || <span className="text-muted-foreground">-</span>}
                   </TableCell>
                   <TableCell className="text-muted-foreground hidden lg:table-cell text-sm">
-                    {contact.company || <span className="text-muted-foreground">-</span>}
+                    {contact.organization_name || <span className="text-muted-foreground">-</span>}
+                  </TableCell>
+                  <TableCell className="text-muted-foreground hidden lg:table-cell text-sm">
+                    {contact.contact_type || <span className="text-muted-foreground">-</span>}
                   </TableCell>
                   <TableCell className="hidden md:table-cell">
                     <div className="flex flex-wrap gap-1">
