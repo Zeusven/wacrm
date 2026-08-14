@@ -5,9 +5,14 @@ import type { Conversation, Contact, Tag } from "@/types";
  * can filter conversations by contact tag without a second round-trip.
  * `contact_tags(tags(*))` returns the join rows; {@link normalizeConversation}
  * flattens them onto `contact.tags`.
+ *
+ * The embed pins the FK to `conversations_contact_id_fkey` explicitly:
+ * migration 039 added `conversations.active_contact_id`, a second FK to
+ * `contacts`, and PostgREST can't infer which one `contact:contacts(...)`
+ * means once there are two — it errors the whole query instead of guessing.
  */
 export const CONVERSATION_SELECT =
-  "*, contact:contacts(*, contact_tags(tags(*)))";
+  "*, contact:contacts!conversations_contact_id_fkey(*, contact_tags(tags(*)))";
 
 /** Raw shape returned by {@link CONVERSATION_SELECT} before flattening. */
 type RawContact = Contact & { contact_tags?: { tags: Tag | null }[] };
