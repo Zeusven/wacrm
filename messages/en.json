@@ -1790,6 +1790,8 @@
     "colDate": "Date",
     "colStatus": "Status",
     "noDue": "Nothing due — you're caught up",
+    "weekTitle": "This week",
+    "noUpcoming": "No upcoming next actions in the next 7 days",
     "orgsWithoutContactsTitle": "Institutions without any contact yet",
     "colType": "Type",
     "colPotential": "Potential",

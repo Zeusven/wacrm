@@ -15,18 +15,27 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { CalendarClock, Building2, UserX, Loader2, ListChecks } from 'lucide-react';
+import { CalendarClock, CalendarDays, Building2, UserX, Loader2, ListChecks } from 'lucide-react';
 
 interface TodayData {
   due_meetings: Meeting[];
+  upcoming_by_date: Record<string, Meeting[]>;
   organizations_without_contacts: Organization[];
   decisors_missing_channel: OrganizationContact[];
   counters: {
     due_today_or_overdue: number;
+    upcoming_this_week: number;
     organizations_without_contacts: number;
     decisors_identified: number;
     decisors_missing_channel: number;
   };
+}
+
+const DOW_LONG = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
+
+function formatDayHeader(isoDate: string): string {
+  const d = new Date(isoDate + 'T00:00:00Z');
+  return `${DOW_LONG[d.getUTCDay()]} ${d.getUTCDate()}/${d.getUTCMonth() + 1}`;
 }
 
 function StatCard({ label, value }: { label: string; value: number }) {
@@ -77,8 +86,9 @@ export default function TodayPage() {
         <h1 className="text-xl font-semibold">{t('title')}</h1>
       </div>
 
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
         <StatCard label={t('statDue')} value={data.counters.due_today_or_overdue} />
+        <StatCard label={t('weekTitle')} value={data.counters.upcoming_this_week} />
         <StatCard label={t('statOrgsWithoutContacts')} value={data.counters.organizations_without_contacts} />
         <StatCard label={t('statDecisorsIdentified')} value={data.counters.decisors_identified} />
         <StatCard label={t('statDecisorsMissingChannel')} value={data.counters.decisors_missing_channel} />
@@ -128,6 +138,49 @@ export default function TodayPage() {
           </TableBody>
         </Table>
       </div>
+
+      <div className="flex items-center gap-2 pt-2">
+        <CalendarDays className="h-4 w-4 text-muted-foreground" />
+        <h2 className="text-sm font-semibold">{t('weekTitle')}</h2>
+      </div>
+      {Object.keys(data.upcoming_by_date).length === 0 ? (
+        <div className="rounded-md border p-4 text-center text-sm text-muted-foreground">
+          {t('noUpcoming')}
+        </div>
+      ) : (
+        <div className="flex flex-col gap-3">
+          {Object.entries(data.upcoming_by_date)
+            .sort(([a], [b]) => a.localeCompare(b))
+            .map(([date, meetings]) => (
+              <div key={date} className="rounded-md border">
+                <div className="border-b bg-muted/50 px-3 py-2 text-xs font-semibold uppercase text-muted-foreground">
+                  {formatDayHeader(date)}
+                </div>
+                <Table>
+                  <TableBody>
+                    {meetings.map((m) => (
+                      <TableRow
+                        key={m.id}
+                        className={m.organization_id ? 'cursor-pointer' : ''}
+                        onClick={() =>
+                          m.organization_id && router.push(`/organizations/${m.organization_id}`)
+                        }
+                      >
+                        <TableCell className="font-medium">
+                          {m.organization?.name ?? m.contact?.name ?? '—'}
+                        </TableCell>
+                        <TableCell>{m.next_action ?? '—'}</TableCell>
+                        <TableCell>
+                          <Badge variant="outline">{m.status}</Badge>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            ))}
+        </div>
+      )}
 
       <div className="flex items-center gap-2 pt-2">
         <Building2 className="h-4 w-4 text-muted-foreground" />

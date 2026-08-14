@@ -1790,6 +1790,8 @@
     "colDate": "Fecha",
     "colStatus": "Estado",
     "noDue": "Nada pendiente — estás al día",
+    "weekTitle": "Esta semana",
+    "noUpcoming": "Sin próximas acciones agendadas para los próximos 7 días",
     "orgsWithoutContactsTitle": "Instituciones sin ningún contacto todavía",
     "colType": "Tipo",
     "colPotential": "Potencial",
