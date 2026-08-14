@@ -20,6 +20,9 @@ export interface ApiConversation {
   unread_count: number;
   created_at: string;
   updated_at: string;
+  /** Migration 039 — see PATCH /api/v1/conversations/{id}. */
+  active_contact_id: string | null;
+  active_contact_set_at: string | null;
   contact: {
     id: string;
     phone: string;
@@ -62,6 +65,8 @@ export function serializeConversation(conv: Conversation): ApiConversation {
     unread_count: conv.unread_count ?? 0,
     created_at: conv.created_at,
     updated_at: conv.updated_at,
+    active_contact_id: conv.active_contact_id ?? null,
+    active_contact_set_at: conv.active_contact_set_at ?? null,
     contact: c
       ? {
           id: c.id,

@@ -340,6 +340,66 @@ export interface Conversation {
   ai_autoreply_disabled?: boolean;
   ai_reply_count?: number;
   ai_handoff_summary?: string | null;
+  /**
+   * Migration 039 — session continuity for the "notes to self"
+   * voice-note automation. The contact this conversation was last
+   * resolved to; a follow-up message that names nobody new falls
+   * back to this (within a freshness window) instead of creating an
+   * orphan note or misattaching to whichever contact this thread's
+   * own phone number belongs to.
+   */
+  active_contact_id?: string | null;
+  active_contact_set_at?: string | null;
+}
+
+// ------------------------------------------------------------
+// Tasks + Reminders (migration 039) — checklist items and scheduled
+// WhatsApp nudges, both optionally linked to contact/organization/
+// meeting so "Contactar a Nicolas mañana" carries a real contact_id,
+// not just free text.
+// ------------------------------------------------------------
+
+export type TaskStatus = "PENDIENTE" | "HECHA" | "CANCELADA";
+export type ReminderStatus = "PENDIENTE" | "ENVIADO" | "CANCELADO" | "FALLIDO";
+
+export interface Task {
+  id: string;
+  account_id: string;
+  contact_id?: string | null;
+  organization_id?: string | null;
+  meeting_id?: string | null;
+  title: string;
+  description?: string | null;
+  due_date?: string | null;
+  status: TaskStatus;
+  completed_at?: string | null;
+  created_by?: string | null;
+  created_at: string;
+  updated_at: string;
+  /** Hydrated by queries that embed contacts(*)/organizations(*). */
+  contact?: Contact;
+  organization?: Organization;
+}
+
+export interface Reminder {
+  id: string;
+  account_id: string;
+  contact_id?: string | null;
+  organization_id?: string | null;
+  meeting_id?: string | null;
+  task_id?: string | null;
+  message: string;
+  channel: string;
+  remind_at: string;
+  status: ReminderStatus;
+  sent_at?: string | null;
+  error?: string | null;
+  created_by?: string | null;
+  created_at: string;
+  updated_at: string;
+  /** Hydrated by queries that embed contacts(*)/organizations(*). */
+  contact?: Contact;
+  organization?: Organization;
 }
 
 // ============================================================

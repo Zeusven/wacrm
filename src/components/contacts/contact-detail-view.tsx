@@ -6,7 +6,7 @@ import { addContactTag, deleteContactTag } from '@/lib/contacts/tag-api';
 import { useAuth } from '@/hooks/use-auth';
 import { formatCurrency } from '@/lib/currency';
 import { toast } from 'sonner';
-import type { Contact, Tag, ContactTag, ContactNote, CustomField, ContactCustomValue, Deal, MessageTemplate, OrganizationContact, DecisionLevel } from '@/types';
+import type { Contact, Tag, ContactTag, ContactNote, CustomField, ContactCustomValue, Deal, MessageTemplate, OrganizationContact, DecisionLevel, Task, Reminder, Meeting } from '@/types';
 import {
   TemplatePicker,
   type TemplateSendValues,
@@ -46,6 +46,10 @@ import {
   X,
   DollarSign,
   LayoutTemplate,
+  BellRing,
+  CalendarClock,
+  CheckCircle2,
+  Circle,
 } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 
@@ -123,6 +127,28 @@ export function ContactDetailView({
   const [linkDecisionLevel, setLinkDecisionLevel] = useState<DecisionLevel>('NO_DETERMINADO');
   const [savingOrgLink, setSavingOrgLink] = useState(false);
 
+  // Tasks tab (migration 039) — the checklist for this contact. This
+  // (plus Reminders/Meetings below) is what makes the contact card the
+  // one place a "próximo movimiento" actually lives, instead of being
+  // scattered across /today and free text.
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [loadingTasks, setLoadingTasks] = useState(false);
+  const [newTaskTitle, setNewTaskTitle] = useState('');
+  const [newTaskDueDate, setNewTaskDueDate] = useState('');
+  const [savingTask, setSavingTask] = useState(false);
+
+  // Reminders tab (migration 039) — scheduled WhatsApp nudges sent by
+  // /api/reminders/cron.
+  const [reminders, setReminders] = useState<Reminder[]>([]);
+  const [loadingReminders, setLoadingReminders] = useState(false);
+  const [newReminderMessage, setNewReminderMessage] = useState('');
+  const [newReminderAt, setNewReminderAt] = useState('');
+  const [savingReminder, setSavingReminder] = useState(false);
+
+  // Meetings tab — activities/reuniones tied to this contact.
+  const [meetings, setMeetings] = useState<Meeting[]>([]);
+  const [loadingMeetings, setLoadingMeetings] = useState(false);
+
   const fetchContact = useCallback(async () => {
     if (!contactId) return;
     setLoading(true);
@@ -136,7 +162,7 @@ export function ContactDetailView({
     if (data) {
       setContact(data);
       setEditName(data.name ?? '');
-      setEditPhone(data.phone);
+      setEditPhone(data.phone ?? '');
       setEditEmail(data.email ?? '');
       setEditCompany(data.company ?? '');
     }
@@ -218,6 +244,119 @@ export function ContactDetailView({
     setLoadingOrgLinks(false);
   }, [contactId, supabase]);
 
+  const fetchTasks = useCallback(async () => {
+    if (!contactId) return;
+    setLoadingTasks(true);
+    const res = await fetch(`/api/tasks?contact_id=${contactId}`);
+    const body = await res.json().catch(() => ({}));
+    setTasks(res.ok ? ((body.tasks ?? []) as Task[]) : []);
+    setLoadingTasks(false);
+  }, [contactId]);
+
+  const fetchReminders = useCallback(async () => {
+    if (!contactId) return;
+    setLoadingReminders(true);
+    const res = await fetch(`/api/reminders?contact_id=${contactId}`);
+    const body = await res.json().catch(() => ({}));
+    setReminders(res.ok ? ((body.reminders ?? []) as Reminder[]) : []);
+    setLoadingReminders(false);
+  }, [contactId]);
+
+  const fetchMeetings = useCallback(async () => {
+    if (!contactId) return;
+    setLoadingMeetings(true);
+    const res = await fetch(`/api/meetings?contact_id=${contactId}`);
+    const body = await res.json().catch(() => ({}));
+    setMeetings(res.ok ? ((body.meetings ?? []) as Meeting[]) : []);
+    setLoadingMeetings(false);
+  }, [contactId]);
+
+  async function addTask() {
+    if (!contactId || !newTaskTitle.trim()) return;
+    setSavingTask(true);
+    try {
+      const res = await fetch('/api/tasks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contact_id: contactId,
+          title: newTaskTitle.trim(),
+          due_date: newTaskDueDate || null,
+        }),
+      });
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.error ?? 'Error');
+      setNewTaskTitle('');
+      setNewTaskDueDate('');
+      await fetchTasks();
+      toast.success(t('tasksTab.added', { fallback: 'Tarea agregada' }));
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Error');
+    } finally {
+      setSavingTask(false);
+    }
+  }
+
+  async function toggleTaskDone(task: Task) {
+    const nextStatus = task.status === 'HECHA' ? 'PENDIENTE' : 'HECHA';
+    setTasks((prev) =>
+      prev.map((t2) => (t2.id === task.id ? { ...t2, status: nextStatus } : t2))
+    );
+    try {
+      const res = await fetch(`/api/tasks/${task.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: nextStatus }),
+      });
+      if (!res.ok) throw new Error();
+    } catch {
+      toast.error(t('toastUpdateFailed'));
+      await fetchTasks();
+    }
+  }
+
+  async function deleteTask(taskId: string) {
+    await fetch(`/api/tasks/${taskId}`, { method: 'DELETE' });
+    setTasks((prev) => prev.filter((t2) => t2.id !== taskId));
+  }
+
+  async function addReminder() {
+    if (!contactId || !newReminderMessage.trim() || !newReminderAt) return;
+    setSavingReminder(true);
+    try {
+      const res = await fetch('/api/reminders', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contact_id: contactId,
+          message: newReminderMessage.trim(),
+          remind_at: new Date(newReminderAt).toISOString(),
+        }),
+      });
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.error ?? 'Error');
+      setNewReminderMessage('');
+      setNewReminderAt('');
+      await fetchReminders();
+      toast.success(t('remindersTab.added', { fallback: 'Recordatorio programado' }));
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Error');
+    } finally {
+      setSavingReminder(false);
+    }
+  }
+
+  async function cancelReminder(reminderId: string) {
+    await fetch(`/api/reminders/${reminderId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: 'CANCELADO' }),
+    });
+    setReminders((prev) =>
+      prev.map((r) => (r.id === reminderId ? { ...r, status: 'CANCELADO' } : r))
+    );
+  }
+
   useEffect(() => {
     const timeout = setTimeout(async () => {
       if (!orgQuery.trim()) {
@@ -286,8 +425,23 @@ export function ContactDetailView({
       fetchCustomFields();
       fetchDeals();
       fetchOrgLinks();
+      fetchTasks();
+      fetchReminders();
+      fetchMeetings();
     }
-  }, [open, contactId, fetchContact, fetchTags, fetchNotes, fetchCustomFields, fetchDeals, fetchOrgLinks]);
+  }, [
+    open,
+    contactId,
+    fetchContact,
+    fetchTags,
+    fetchNotes,
+    fetchCustomFields,
+    fetchDeals,
+    fetchOrgLinks,
+    fetchTasks,
+    fetchReminders,
+    fetchMeetings,
+  ]);
 
   async function copyPhone() {
     if (!contact) return;
@@ -297,8 +451,13 @@ export function ContactDetailView({
   }
 
   async function saveDetails() {
-    if (!contactId || !editPhone.trim()) {
-      toast.error(t('toastPhoneRequired'));
+    if (!contactId) return;
+    // Migration 038: phone is optional — a contact known only by
+    // email (a Sistemas/IT decisor before their WhatsApp is on hand)
+    // must still be editable. Require *one* of phone/email, same
+    // check as the create form (contact-form.tsx), not phone alone.
+    if (!editPhone.trim() && !editEmail.trim()) {
+      toast.error(t('toastPhoneOrEmailRequired', { fallback: 'Cargá teléfono o email' }));
       return;
     }
 
@@ -307,7 +466,7 @@ export function ContactDetailView({
       .from('contacts')
       .update({
         name: editName.trim() || null,
-        phone: editPhone.trim(),
+        phone: editPhone.trim() || null,
         email: editEmail.trim() || null,
         company: editCompany.trim() || null,
         updated_at: new Date().toISOString(),
@@ -504,18 +663,25 @@ export function ContactDetailView({
                     {t('contactDetailsDesc')}
                   </SheetDescription>
                   <div className="flex flex-wrap items-center gap-3 mt-1.5 text-xs text-muted-foreground">
-                    <button
-                      onClick={copyPhone}
-                      className="flex items-center gap-1 hover:text-primary transition-colors cursor-pointer"
-                    >
-                      <Phone className="size-3" />
-                      {contact.phone}
-                      {copiedPhone ? (
-                        <Check className="size-3 text-primary" />
-                      ) : (
-                        <Copy className="size-3" />
-                      )}
-                    </button>
+                    {contact.phone ? (
+                      <button
+                        onClick={copyPhone}
+                        className="flex items-center gap-1 hover:text-primary transition-colors cursor-pointer"
+                      >
+                        <Phone className="size-3" />
+                        {contact.phone}
+                        {copiedPhone ? (
+                          <Check className="size-3 text-primary" />
+                        ) : (
+                          <Copy className="size-3" />
+                        )}
+                      </button>
+                    ) : (
+                      <span className="flex items-center gap-1 italic">
+                        <Phone className="size-3" />
+                        {t('noPhone', { fallback: 'Sin teléfono' })}
+                      </span>
+                    )}
                     {contact.email && (
                       <span className="flex items-center gap-1">
                         <Mail className="size-3" />
@@ -587,13 +753,31 @@ export function ContactDetailView({
                 >
                   {t('tabs.organization', { fallback: 'Institución' })}
                 </TabsTrigger>
+                <TabsTrigger
+                  value="tasks"
+                  className="data-active:bg-muted data-active:text-primary text-muted-foreground"
+                >
+                  {t('tabs.tasks', { fallback: 'Tareas' })}
+                </TabsTrigger>
+                <TabsTrigger
+                  value="reminders"
+                  className="data-active:bg-muted data-active:text-primary text-muted-foreground"
+                >
+                  {t('tabs.reminders', { fallback: 'Recordatorios' })}
+                </TabsTrigger>
+                <TabsTrigger
+                  value="meetings"
+                  className="data-active:bg-muted data-active:text-primary text-muted-foreground"
+                >
+                  {t('tabs.meetings', { fallback: 'Reuniones' })}
+                </TabsTrigger>
               </TabsList>
 
               {/* Details Tab */}
               <TabsContent value="details" className="flex-1 overflow-y-auto px-4 py-3">
                 <div className="space-y-3">
                   <div className="space-y-1.5">
-                    <Label className="text-muted-foreground text-xs">{t('company', { fallback: 'Name' })}</Label>
+                    <Label className="text-muted-foreground text-xs">{t('name', { fallback: 'Nombre' })}</Label>
                     <Input
                       value={editName}
                       onChange={(e) => setEditName(e.target.value)}
@@ -602,7 +786,7 @@ export function ContactDetailView({
                   </div>
                   <div className="space-y-1.5">
                     <Label className="text-muted-foreground text-xs">
-                      {t('phone')} <span className="text-red-400">*</span>
+                      {t('phone')}
                     </Label>
                     <Input
                       value={editPhone}
@@ -958,6 +1142,207 @@ export function ContactDetailView({
                     </Button>
                   </div>
                 </div>
+              </TabsContent>
+
+              {/* Tasks Tab (migration 039) */}
+              <TabsContent value="tasks" className="flex-1 overflow-y-auto px-4 py-3">
+                <div className="space-y-3">
+                  <div className="flex gap-2">
+                    <Input
+                      placeholder={t('tasksTab.placeholder', { fallback: 'Nueva tarea…' })}
+                      value={newTaskTitle}
+                      onChange={(e) => setNewTaskTitle(e.target.value)}
+                      className="bg-muted border-border text-foreground h-8 text-sm flex-1"
+                    />
+                    <Input
+                      type="date"
+                      value={newTaskDueDate}
+                      onChange={(e) => setNewTaskDueDate(e.target.value)}
+                      className="bg-muted border-border text-foreground h-8 text-sm w-36"
+                    />
+                    <Button
+                      size="sm"
+                      disabled={!newTaskTitle.trim() || savingTask}
+                      onClick={addTask}
+                    >
+                      {savingTask ? (
+                        <Loader2 className="size-3.5 animate-spin" />
+                      ) : (
+                        <Plus className="size-3.5" />
+                      )}
+                    </Button>
+                  </div>
+
+                  {loadingTasks ? (
+                    <div className="flex items-center justify-center py-8">
+                      <Loader2 className="size-5 animate-spin text-primary" />
+                    </div>
+                  ) : tasks.length === 0 ? (
+                    <p className="text-xs text-muted-foreground text-center py-8">
+                      {t('tasksTab.noTasks', { fallback: 'Sin tareas para este contacto' })}
+                    </p>
+                  ) : (
+                    <div className="space-y-1.5">
+                      {tasks.map((task) => (
+                        <div
+                          key={task.id}
+                          className="flex items-start gap-2 rounded-lg border border-border bg-muted/50 p-2.5 group"
+                        >
+                          <button
+                            onClick={() => toggleTaskDone(task)}
+                            className="mt-0.5 shrink-0 text-muted-foreground hover:text-primary cursor-pointer"
+                          >
+                            {task.status === 'HECHA' ? (
+                              <CheckCircle2 className="size-4 text-primary" />
+                            ) : (
+                              <Circle className="size-4" />
+                            )}
+                          </button>
+                          <div className="flex-1 min-w-0">
+                            <p
+                              className={`text-sm ${task.status === 'HECHA' ? 'line-through text-muted-foreground' : 'text-foreground'}`}
+                            >
+                              {task.title}
+                            </p>
+                            {task.due_date && (
+                              <p className="text-xs text-muted-foreground mt-0.5">
+                                {task.due_date}
+                              </p>
+                            )}
+                          </div>
+                          <button
+                            onClick={() => deleteTask(task.id)}
+                            className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-red-400 transition-all cursor-pointer shrink-0"
+                          >
+                            <Trash2 className="size-3.5" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </TabsContent>
+
+              {/* Reminders Tab (migration 039) */}
+              <TabsContent value="reminders" className="flex-1 overflow-y-auto px-4 py-3">
+                <div className="space-y-3">
+                  <div className="space-y-2 rounded-lg border border-border bg-muted/50 p-2.5">
+                    <Textarea
+                      placeholder={t('remindersTab.placeholder', { fallback: 'Mensaje del recordatorio…' })}
+                      value={newReminderMessage}
+                      onChange={(e) => setNewReminderMessage(e.target.value)}
+                      className="bg-muted border-border text-foreground placeholder:text-muted-foreground min-h-[50px] text-sm resize-none"
+                    />
+                    <div className="flex gap-2">
+                      <Input
+                        type="datetime-local"
+                        value={newReminderAt}
+                        onChange={(e) => setNewReminderAt(e.target.value)}
+                        className="bg-muted border-border text-foreground h-8 text-sm flex-1"
+                      />
+                      <Button
+                        size="sm"
+                        disabled={!newReminderMessage.trim() || !newReminderAt || savingReminder}
+                        onClick={addReminder}
+                      >
+                        {savingReminder ? (
+                          <Loader2 className="size-3.5 animate-spin" />
+                        ) : (
+                          <BellRing className="size-3.5" />
+                        )}
+                        {t('remindersTab.schedule', { fallback: 'Programar' })}
+                      </Button>
+                    </div>
+                  </div>
+
+                  {loadingReminders ? (
+                    <div className="flex items-center justify-center py-8">
+                      <Loader2 className="size-5 animate-spin text-primary" />
+                    </div>
+                  ) : reminders.length === 0 ? (
+                    <p className="text-xs text-muted-foreground text-center py-8">
+                      {t('remindersTab.noReminders', { fallback: 'Sin recordatorios para este contacto' })}
+                    </p>
+                  ) : (
+                    <div className="space-y-1.5">
+                      {reminders.map((reminder) => (
+                        <div
+                          key={reminder.id}
+                          className="flex items-start justify-between gap-2 rounded-lg border border-border bg-muted/50 p-2.5"
+                        >
+                          <div className="min-w-0">
+                            <p className="text-sm text-foreground">{reminder.message}</p>
+                            <p className="text-xs text-muted-foreground mt-0.5">
+                              {new Date(reminder.remind_at).toLocaleString('es-AR', {
+                                day: '2-digit',
+                                month: '2-digit',
+                                hour: '2-digit',
+                                minute: '2-digit',
+                              })}
+                            </p>
+                          </div>
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            <Badge variant="outline" className="text-[10px]">
+                              {reminder.status}
+                            </Badge>
+                            {reminder.status === 'PENDIENTE' && (
+                              <button
+                                onClick={() => cancelReminder(reminder.id)}
+                                className="text-muted-foreground hover:text-red-400 transition-all cursor-pointer"
+                              >
+                                <X className="size-3.5" />
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </TabsContent>
+
+              {/* Meetings Tab */}
+              <TabsContent value="meetings" className="flex-1 overflow-y-auto px-4 py-3">
+                {loadingMeetings ? (
+                  <div className="flex items-center justify-center py-8">
+                    <Loader2 className="size-5 animate-spin text-primary" />
+                  </div>
+                ) : meetings.length === 0 ? (
+                  <p className="text-xs text-muted-foreground text-center py-8">
+                    {t('meetingsTab.noMeetings', { fallback: 'Sin reuniones para este contacto' })}
+                  </p>
+                ) : (
+                  <div className="space-y-2">
+                    {meetings.map((meeting) => (
+                      <div
+                        key={meeting.id}
+                        className="rounded-lg border border-border bg-muted/50 p-3"
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <p className="text-sm font-medium text-foreground">
+                            {meeting.objective || t('meetingsTab.untitled', { fallback: 'Reunión' })}
+                          </p>
+                          <Badge variant="outline" className="text-[10px] shrink-0">
+                            {meeting.status}
+                          </Badge>
+                        </div>
+                        {(meeting.scheduled_at || meeting.next_action_date) && (
+                          <p className="mt-1.5 flex items-center gap-1 text-xs text-muted-foreground">
+                            <CalendarClock className="size-3" />
+                            {meeting.scheduled_at
+                              ? new Date(meeting.scheduled_at).toLocaleString('es-AR')
+                              : meeting.next_action_date}
+                          </p>
+                        )}
+                        {meeting.next_action && (
+                          <p className="mt-1 text-xs text-muted-foreground">
+                            {meeting.next_action}
+                          </p>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
               </TabsContent>
             </Tabs>
           </div>

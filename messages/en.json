@@ -40,7 +40,8 @@
     "defaultAvatar": "Avatar",
     "menuProfile": "Profile",
     "menuSettings": "Settings",
-    "menuSignOut": "Sign out"
+    "menuSignOut": "Sign out",
+    "calendar": "Calendar"
   },
   "Header": {
     "dashboard": "Dashboard",
@@ -378,7 +379,10 @@
         "tags": "Tags",
         "noTags": "No tags",
         "noDeals": "No deals",
-        "addNotePlaceholder": "Add a note..."
+        "addNotePlaceholder": "Add a note...",
+        "tasks": "Tasks",
+        "reminders": "Reminders",
+        "meetings": "Meetings"
       },
       "actions": {
         "edit": "Edit",
@@ -436,7 +440,25 @@
       "toastCustomFieldsSaved": "Custom fields saved",
       "toastCustomFieldsFailed": "Failed to save custom fields",
       "toastTemplateSent": "Template \"{name}\" sent",
-      "toastTemplateFailed": "Failed to send template: {reason}"
+      "toastTemplateFailed": "Failed to send template: {reason}",
+      "name": "Name",
+      "noPhone": "No phone",
+      "toastPhoneOrEmailRequired": "Enter a phone or email",
+      "tasksTab": {
+        "placeholder": "New task…",
+        "noTasks": "No tasks for this contact",
+        "added": "Task added"
+      },
+      "remindersTab": {
+        "placeholder": "Reminder message…",
+        "schedule": "Schedule",
+        "noReminders": "No reminders for this contact",
+        "added": "Reminder scheduled"
+      },
+      "meetingsTab": {
+        "noMeetings": "No meetings for this contact",
+        "untitled": "Meeting"
+      }
     },
     "importModal": {
       "title": "Import Contacts",
@@ -1800,5 +1822,15 @@
     "colContact": "Contact",
     "colDecisionLevel": "Decision level",
     "noDecisorsMissingChannel": "Every decision-maker has a phone or email on file"
+  },
+  "Calendar": {
+    "title": "Calendar",
+    "loadError": "Couldn't load the calendar",
+    "today": "Today",
+    "more": "more",
+    "untitledMeeting": "Meeting",
+    "pickDay": "Pick a day",
+    "pickDayHint": "Tap a day on the calendar to see its detail",
+    "noItemsThisDay": "Nothing for this day"
   }
 }

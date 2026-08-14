@@ -11,6 +11,7 @@ import {
   Bell,
   Bot,
   Building2,
+  CalendarDays,
   Crown,
   GitBranch,
   LayoutDashboard,
@@ -94,6 +95,7 @@ interface NavItem {
 const navItems: NavItem[] = [
   { href: "/dashboard", labelKey: "dashboard", icon: LayoutDashboard },
   { href: "/today", labelKey: "today", icon: ListChecks },
+  { href: "/calendar", labelKey: "calendar", icon: CalendarDays },
   { href: "/inbox", labelKey: "inbox", icon: MessageSquare },
   { href: "/notifications", labelKey: "notifications", icon: Bell },
   { href: "/contacts", labelKey: "contacts", icon: Users },

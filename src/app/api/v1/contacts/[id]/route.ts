@@ -4,8 +4,9 @@
 //
 // Both are account-scoped: a contact belonging to another account
 // returns 404 (never 403 — don't reveal it exists elsewhere).
-// PATCH updates only the fields present in the body; pass `tags` (an
-// array of tag names) to replace the contact's tags.
+// PATCH updates only the fields present in the body (name, email,
+// company, profession, linkedin_url, contact_type, phone); pass
+// `tags` (an array of tag names) to replace the contact's tags.
 // ============================================================
 
 import { requireApiKey } from '@/lib/auth/api-context';
@@ -16,6 +17,7 @@ import {
   resolveAuditUserId,
   ContactError,
 } from '@/lib/api/v1/contacts';
+import { sanitizePhoneForMeta, isValidE164 } from '@/lib/whatsapp/phone-utils';
 
 export async function GET(
   request: Request,
@@ -57,13 +59,38 @@ export async function PATCH(
     // untouched); `null` clears it, a string sets it, and any other
     // type is a 400 rather than a silently-ignored no-op.
     const updates: Record<string, unknown> = {};
-    for (const field of ['name', 'email', 'company'] as const) {
+    for (const field of [
+      'name', 'email', 'company', 'profession', 'linkedin_url', 'contact_type',
+    ] as const) {
       if (!(field in body)) continue;
       const value = body[field];
       if (value === null || typeof value === 'string') {
         updates[field] = value;
       } else {
         return fail('bad_request', `'${field}' must be a string or null`, 400);
+      }
+    }
+
+    // `phone` gets its own branch: unlike the other fields it needs
+    // E.164 validation, and setting it (a contact that started
+    // email-only later gets a WhatsApp number confirmed) is exactly
+    // the "agregar teléfono más tarde" case migration 038 exists for.
+    if ('phone' in body) {
+      const raw = body.phone;
+      if (raw === null) {
+        updates.phone = null;
+      } else if (typeof raw === 'string') {
+        const sanitized = sanitizePhoneForMeta(raw);
+        if (!isValidE164(sanitized)) {
+          return fail(
+            'bad_request',
+            "'phone' must be a valid phone number in E.164 format (e.g. +14155550123)",
+            400
+          );
+        }
+        updates.phone = sanitized;
+      } else {
+        return fail('bad_request', "'phone' must be a string or null", 400);
       }
     }
 

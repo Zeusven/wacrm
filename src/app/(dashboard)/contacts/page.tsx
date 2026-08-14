@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { Suspense, useState, useEffect, useCallback, useRef } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { toast } from 'sonner';
 import type { Contact, Tag, ContactTag, CustomField } from '@/types';
@@ -69,9 +70,24 @@ interface ContactWithTags extends Contact {
   organization_name?: string | null;
 }
 
+// `useSearchParams` (for the `?open=<contactId>` deep link — used by the
+// WhatsApp voice-note automation's confirmation message to point at the
+// real contact instead of a vague "editalo en /organizations") opts this
+// page out of static prerendering unless it sits under a Suspense
+// boundary. Mirror the settings page's split: a thin wrapper supplies
+// the boundary; the inner component reads the query string.
 export default function ContactsPage() {
+  return (
+    <Suspense fallback={null}>
+      <ContactsPageInner />
+    </Suspense>
+  );
+}
+
+function ContactsPageInner() {
   const t = useTranslations('Contacts.page');
   const supabase = createClient();
+  const searchParams = useSearchParams();
   const canEdit = useCan('send-messages');
   const canEditSettings = useCan('edit-settings');
 
@@ -101,6 +117,19 @@ export default function ContactsPage() {
   const [editContactTags, setEditContactTags] = useState<ContactTag[]>([]);
   const [detailOpen, setDetailOpen] = useState(false);
   const [detailContactId, setDetailContactId] = useState<string | null>(null);
+
+  // Deep link: `?open=<contactId>` auto-opens that contact's detail
+  // sheet. This is what lets an external confirmation message (e.g.
+  // the WhatsApp voice-note automation's "Contacto creado: X — editalo
+  // acá") link straight at the real record instead of a vague pointer
+  // at a whole section.
+  useEffect(() => {
+    const openId = searchParams.get('open');
+    if (openId) {
+      setDetailContactId(openId);
+      setDetailOpen(true);
+    }
+  }, [searchParams]);
   const [importOpen, setImportOpen] = useState(false);
   const [customFieldsOpen, setCustomFieldsOpen] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);

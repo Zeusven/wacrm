@@ -40,7 +40,8 @@
     "defaultAvatar": "Avatar",
     "menuProfile": "Perfil",
     "menuSettings": "Configuración",
-    "menuSignOut": "Cerrar sesión"
+    "menuSignOut": "Cerrar sesión",
+    "calendar": "Calendario"
   },
   "Header": {
     "dashboard": "Panel",
@@ -378,7 +379,10 @@
         "tags": "Etiquetas",
         "noTags": "Sin etiquetas",
         "noDeals": "Sin negocios",
-        "addNotePlaceholder": "Agregar una nota..."
+        "addNotePlaceholder": "Agregar una nota...",
+        "tasks": "Tareas",
+        "reminders": "Recordatorios",
+        "meetings": "Reuniones"
       },
       "actions": {
         "edit": "Editar",
@@ -436,7 +440,25 @@
       "toastCustomFieldsSaved": "Campos personalizados guardados",
       "toastCustomFieldsFailed": "No se pudieron guardar los campos personalizados",
       "toastTemplateSent": "Plantilla \"{name}\" enviada",
-      "toastTemplateFailed": "No se pudo enviar la plantilla: {reason}"
+      "toastTemplateFailed": "No se pudo enviar la plantilla: {reason}",
+      "name": "Nombre",
+      "noPhone": "Sin teléfono",
+      "toastPhoneOrEmailRequired": "Cargá teléfono o email",
+      "tasksTab": {
+        "placeholder": "Nueva tarea…",
+        "noTasks": "Sin tareas para este contacto",
+        "added": "Tarea agregada"
+      },
+      "remindersTab": {
+        "placeholder": "Mensaje del recordatorio…",
+        "schedule": "Programar",
+        "noReminders": "Sin recordatorios para este contacto",
+        "added": "Recordatorio programado"
+      },
+      "meetingsTab": {
+        "noMeetings": "Sin reuniones para este contacto",
+        "untitled": "Reunión"
+      }
     },
     "importModal": {
       "title": "Importar contactos",
@@ -1800,5 +1822,15 @@
     "colContact": "Contacto",
     "colDecisionLevel": "Nivel de decisión",
     "noDecisorsMissingChannel": "Todos los decisores tienen teléfono o email cargado"
+  },
+  "Calendar": {
+    "title": "Calendario",
+    "loadError": "No se pudo cargar el calendario",
+    "today": "Hoy",
+    "more": "más",
+    "untitledMeeting": "Reunión",
+    "pickDay": "Elegí un día",
+    "pickDayHint": "Tocá un día del calendario para ver el detalle",
+    "noItemsThisDay": "Nada para este día"
   }
 }
