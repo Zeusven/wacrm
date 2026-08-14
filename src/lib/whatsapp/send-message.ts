@@ -217,10 +217,13 @@ export async function sendMessageToConversation(
 
   const isMediaKind = (MEDIA_KINDS as readonly string[]).includes(messageType);
 
-  // Conversation + contact, account-scoped.
+  // Conversation + contact, account-scoped. FK pinned to
+  // conversations_contact_id_fkey: migration 039 added a second FK
+  // (active_contact_id) to contacts, and an unhinted embed is
+  // ambiguous to PostgREST — see src/lib/inbox/conversations.ts.
   const { data: conversation, error: convError } = await db
     .from('conversations')
-    .select('*, contact:contacts(*)')
+    .select('*, contact:contacts!conversations_contact_id_fkey(*)')
     .eq('id', conversationId)
     .eq('account_id', accountId)
     .single();

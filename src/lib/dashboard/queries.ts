@@ -272,7 +272,7 @@ export async function loadActivity(db: DB, limit = 20): Promise<ActivityItem[]> 
   const [msgs, contacts, deals, broadcasts, autoLogs] = await Promise.all([
     db
       .from('messages')
-      .select('id, content_text, sender_type, created_at, conversation_id, conversations(contact_id, contacts(name, phone))')
+      .select('id, content_text, sender_type, created_at, conversation_id, conversations(contact_id, contacts!conversations_contact_id_fkey(name, phone))')
       .eq('sender_type', 'customer')
       .order('created_at', { ascending: false })
       .limit(10),
