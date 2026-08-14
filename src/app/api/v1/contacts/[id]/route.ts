@@ -5,8 +5,9 @@
 // Both are account-scoped: a contact belonging to another account
 // returns 404 (never 403 — don't reveal it exists elsewhere).
 // PATCH updates only the fields present in the body (name, email,
-// company, profession, linkedin_url, contact_type, phone); pass
-// `tags` (an array of tag names) to replace the contact's tags.
+// company, profession, linkedin_url, contact_type, phone,
+// referred_by_contact_id, relationship_notes, relationship_strength);
+// pass `tags` (an array of tag names) to replace the contact's tags.
 // ============================================================
 
 import { requireApiKey } from '@/lib/auth/api-context';
@@ -61,6 +62,7 @@ export async function PATCH(
     const updates: Record<string, unknown> = {};
     for (const field of [
       'name', 'email', 'company', 'profession', 'linkedin_url', 'contact_type',
+      'referred_by_contact_id', 'relationship_notes', 'relationship_strength',
     ] as const) {
       if (!(field in body)) continue;
       const value = body[field];
