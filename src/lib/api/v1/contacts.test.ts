@@ -62,4 +62,71 @@ describe('findOrCreateContact', () => {
       findOrCreateContact(noopDb, 'acc', 'user', { phone: 'not-a-number' })
     ).rejects.toBeInstanceOf(ContactError);
   });
+
+  it('rejects when neither phone nor email is given', async () => {
+    await expect(
+      findOrCreateContact(noopDb, 'acc', 'user', {})
+    ).rejects.toMatchObject({ status: 400 });
+  });
+
+  function fakeEmailDb(options: {
+    existing?: { id: string } | null;
+    created?: { id: string } | null;
+  }): SupabaseClient {
+    return {
+      from(table: string) {
+        const builder = {
+          select() {
+            return builder;
+          },
+          insert() {
+            return builder;
+          },
+          eq() {
+            return builder;
+          },
+          ilike() {
+            return builder;
+          },
+          limit() {
+            return builder;
+          },
+          maybeSingle() {
+            if (table === 'contacts') {
+              return Promise.resolve({
+                data: options.existing ?? null,
+                error: null,
+              });
+            }
+            return Promise.resolve({ data: null, error: null });
+          },
+          single() {
+            return Promise.resolve({
+              data: options.created ?? { id: 'new-contact-1' },
+              error: null,
+            });
+          },
+        };
+        return builder;
+      },
+    } as unknown as SupabaseClient;
+  }
+
+  it('finds an existing contact by case-insensitive email without touching phone', async () => {
+    const db = fakeEmailDb({ existing: { id: 'contact-existing' } });
+    const result = await findOrCreateContact(db, 'acc', 'user', {
+      email: 'Fcecchi@AMR.org.ar',
+      name: 'Facundo Cecchi',
+    });
+    expect(result).toEqual({ id: 'contact-existing', created: false });
+  });
+
+  it('creates a phone-less contact by email when no match exists', async () => {
+    const db = fakeEmailDb({ existing: null, created: { id: 'contact-new' } });
+    const result = await findOrCreateContact(db, 'acc', 'user', {
+      email: 'fcecchi@amr.org.ar',
+      name: 'Facundo Cecchi',
+    });
+    expect(result).toEqual({ id: 'contact-new', created: true });
+  });
 });

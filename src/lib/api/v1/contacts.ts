@@ -19,7 +19,7 @@ export const CONTACT_SELECT = '*, contact_tags(tags(*))';
 
 export interface ApiContact {
   id: string;
-  phone: string;
+  phone: string | null;
   name: string | null;
   email: string | null;
   company: string | null;
@@ -46,7 +46,7 @@ export function serializeContact(row: Record<string, unknown>): ApiContact {
   const joins = (row.contact_tags as RawTagJoin[] | undefined) ?? [];
   return {
     id: row.id as string,
-    phone: row.phone as string,
+    phone: (row.phone as string | null) ?? null,
     name: (row.name as string | null) ?? null,
     email: (row.email as string | null) ?? null,
     company: (row.company as string | null) ?? null,
@@ -95,10 +95,65 @@ export async function resolveAuditUserId(
 }
 
 export interface ContactInput {
-  phone: string;
+  phone?: string;
   name?: string | null;
   email?: string | null;
   company?: string | null;
+}
+
+/**
+ * Find (by exact case-insensitive email match) or create a phone-less
+ * contact — the path for people known only by email (a decision-maker
+ * named in a sales note before their WhatsApp number is on hand).
+ * `contacts.phone` allows NULL since migration 038 specifically for
+ * this case. Kept separate from `findOrCreateContact`'s phone dedupe
+ * (used by the webhook/CSV import/manual form too) so this addition
+ * can't change behavior for any existing phone-based caller.
+ */
+async function findOrCreateContactByEmail(
+  db: SupabaseClient,
+  accountId: string,
+  auditUserId: string,
+  input: { email: string; name?: string | null; company?: string | null }
+): Promise<{ id: string; created: boolean }> {
+  const email = input.email.trim().toLowerCase();
+
+  const { data: existing, error: findErr } = await db
+    .from('contacts')
+    .select('id')
+    .eq('account_id', accountId)
+    .ilike('email', email)
+    .limit(1)
+    .maybeSingle();
+  if (findErr) {
+    console.error('[api/v1/contacts] email lookup error:', findErr);
+    throw new ContactError('Failed to look up contact', 500);
+  }
+  if (existing) return { id: existing.id as string, created: false };
+
+  const { data: created, error } = await db
+    .from('contacts')
+    .insert({
+      account_id: accountId,
+      user_id: auditUserId,
+      phone: null,
+      name: input.name ?? email,
+      email,
+      company: input.company ?? null,
+    })
+    .select('id')
+    .single();
+
+  if (error || !created) {
+    if (isUniqueViolation(error)) {
+      const raced = await findOrCreateContactByEmail(db, accountId, auditUserId, input);
+      return raced;
+    }
+    console.error('[api/v1/contacts] email create error:', error);
+    throw new ContactError('Failed to create contact', 500);
+  }
+
+  return { id: created.id, created: true };
 }
 
 /**
@@ -106,6 +161,9 @@ export interface ContactInput {
  * Returns the contact id and whether it was created. Reuses the shared
  * `findExistingContact` dedupe + unique-violation race backstop so an
  * API-created contact is indistinguishable from a webhook-created one.
+ *
+ * `phone` is optional — when omitted, `email` is required and becomes
+ * the dedupe key instead (see `findOrCreateContactByEmail`).
  */
 export async function findOrCreateContact(
   db: SupabaseClient,
@@ -113,6 +171,17 @@ export async function findOrCreateContact(
   auditUserId: string,
   input: ContactInput
 ): Promise<{ id: string; created: boolean }> {
+  if (!input.phone) {
+    if (!input.email) {
+      throw new ContactError("'phone' or 'email' is required", 400);
+    }
+    return findOrCreateContactByEmail(db, accountId, auditUserId, {
+      email: input.email,
+      name: input.name,
+      company: input.company,
+    });
+  }
+
   const sanitized = sanitizePhoneForMeta(input.phone);
   if (!isValidE164(sanitized)) {
     throw new ContactError(
