@@ -129,4 +129,74 @@ describe('findOrCreateContact', () => {
     });
     expect(result).toEqual({ id: 'contact-new', created: true });
   });
+
+  function fakeNameDb(options: {
+    existing?: { id: string } | null;
+    created?: { id: string } | null;
+  }): SupabaseClient {
+    return {
+      from(table: string) {
+        const builder = {
+          select() {
+            return builder;
+          },
+          insert() {
+            return builder;
+          },
+          eq() {
+            return builder;
+          },
+          ilike() {
+            return builder;
+          },
+          is() {
+            return builder;
+          },
+          limit() {
+            return builder;
+          },
+          maybeSingle() {
+            if (table === 'contacts') {
+              return Promise.resolve({
+                data: options.existing ?? null,
+                error: null,
+              });
+            }
+            return Promise.resolve({ data: null, error: null });
+          },
+          single() {
+            return Promise.resolve({
+              data: options.created ?? { id: 'new-contact-1' },
+              error: null,
+            });
+          },
+        };
+        return builder;
+      },
+    } as unknown as SupabaseClient;
+  }
+
+  it('finds an existing name-only contact by case-insensitive name+company', async () => {
+    const db = fakeNameDb({ existing: { id: 'contact-existing-2' } });
+    const result = await findOrCreateContact(db, 'acc', 'user', {
+      name: 'Guillermo Cereijo',
+      company: 'Grupo Oroño',
+    });
+    expect(result).toEqual({ id: 'contact-existing-2', created: false });
+  });
+
+  it('creates a contact with neither phone nor email when a name is given', async () => {
+    const db = fakeNameDb({ existing: null, created: { id: 'contact-new-2' } });
+    const result = await findOrCreateContact(db, 'acc', 'user', {
+      name: 'Guillermo Cereijo',
+      company: 'Grupo Oroño',
+    });
+    expect(result).toEqual({ id: 'contact-new-2', created: true });
+  });
+
+  it('rejects when phone, email, and name are all missing', async () => {
+    await expect(
+      findOrCreateContact(noopDb, 'acc', 'user', { company: 'Grupo Oroño' })
+    ).rejects.toMatchObject({ status: 400 });
+  });
 });

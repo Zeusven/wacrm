@@ -107,8 +107,13 @@ export async function POST(request: Request) {
 
     const phone = typeof body.phone === 'string' ? body.phone.trim() : '';
     const email = typeof body.email === 'string' ? body.email.trim() : '';
-    if (!phone && !email) {
-      return fail('bad_request', "'phone' or 'email' is required", 400);
+    const name = typeof body.name === 'string' ? body.name.trim() : '';
+    // A contact known by neither phone nor email can still be created
+    // if it at least has a name (`findOrCreateContact` dedupes it by
+    // name+company instead) — the case of a prospect named in a sales
+    // note before any contact detail is on hand. See contacts.ts.
+    if (!phone && !email && !name) {
+      return fail('bad_request', "'phone', 'email', or 'name' is required", 400);
     }
 
     const auditUserId = await resolveAuditUserId(ctx.supabase, ctx.accountId);

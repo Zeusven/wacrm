@@ -157,13 +157,84 @@ async function findOrCreateContactByEmail(
 }
 
 /**
+ * Find (by case-insensitive name+company match) or create a contact
+ * known by neither phone nor email — a decision-maker named in a sales
+ * note before any contact detail is on hand (e.g. "Guillermo Cereijo,
+ * jefe de IT de Grupo Oroño, referido por Gustavo"). `contacts.phone`
+ * allows NULL since migration 038; this is the same relaxation
+ * `findOrCreateContactByEmail` uses, one step further down the
+ * identifiability ladder. Dedupe key is intentionally loose (name+
+ * company, both case-insensitive) — good enough to stop the same
+ * mention from creating a new row every time it's dictated again,
+ * without conflating two different people who share a first name.
+ * Kept separate from the phone/email paths so this addition can't
+ * change behavior for any existing caller.
+ */
+async function findOrCreateContactByName(
+  db: SupabaseClient,
+  accountId: string,
+  auditUserId: string,
+  input: { name: string; company?: string | null }
+): Promise<{ id: string; created: boolean }> {
+  const name = input.name.trim();
+  const company = input.company?.trim() || null;
+
+  let findQuery = db
+    .from('contacts')
+    .select('id')
+    .eq('account_id', accountId)
+    .is('phone', null)
+    .is('email', null)
+    .ilike('name', name);
+  findQuery = company
+    ? findQuery.ilike('company', company)
+    : findQuery.is('company', null);
+
+  const { data: existing, error: findErr } = await findQuery
+    .limit(1)
+    .maybeSingle();
+  if (findErr) {
+    console.error('[api/v1/contacts] name lookup error:', findErr);
+    throw new ContactError('Failed to look up contact', 500);
+  }
+  if (existing) return { id: existing.id as string, created: false };
+
+  const { data: created, error } = await db
+    .from('contacts')
+    .insert({
+      account_id: accountId,
+      user_id: auditUserId,
+      phone: null,
+      name,
+      email: null,
+      company,
+    })
+    .select('id')
+    .single();
+
+  if (error || !created) {
+    if (isUniqueViolation(error)) {
+      const raced = await findOrCreateContactByName(db, accountId, auditUserId, input);
+      return raced;
+    }
+    console.error('[api/v1/contacts] name create error:', error);
+    throw new ContactError('Failed to create contact', 500);
+  }
+
+  return { id: created.id, created: true };
+}
+
+/**
  * Find (by fuzzy phone match) or create a contact in `accountId`.
  * Returns the contact id and whether it was created. Reuses the shared
  * `findExistingContact` dedupe + unique-violation race backstop so an
  * API-created contact is indistinguishable from a webhook-created one.
  *
- * `phone` is optional — when omitted, `email` is required and becomes
- * the dedupe key instead (see `findOrCreateContactByEmail`).
+ * `phone` is optional — when omitted, `email` becomes the dedupe key
+ * instead (see `findOrCreateContactByEmail`). When both `phone` and
+ * `email` are omitted, a non-empty `name` becomes the (weaker) dedupe
+ * key (see `findOrCreateContactByName`) — the case of a prospect named
+ * in a note before any contact detail exists.
  */
 export async function findOrCreateContact(
   db: SupabaseClient,
@@ -173,7 +244,14 @@ export async function findOrCreateContact(
 ): Promise<{ id: string; created: boolean }> {
   if (!input.phone) {
     if (!input.email) {
-      throw new ContactError("'phone' or 'email' is required", 400);
+      const name = input.name?.trim();
+      if (!name) {
+        throw new ContactError("'phone', 'email', or 'name' is required", 400);
+      }
+      return findOrCreateContactByName(db, accountId, auditUserId, {
+        name,
+        company: input.company,
+      });
     }
     return findOrCreateContactByEmail(db, accountId, auditUserId, {
       email: input.email,
