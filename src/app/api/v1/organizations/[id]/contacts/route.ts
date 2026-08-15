@@ -10,6 +10,7 @@
 
 import { requireApiKey } from '@/lib/auth/api-context';
 import { ok, okList, fail, toApiErrorResponse } from '@/lib/api/v1/respond';
+import { optionalId } from '@/lib/api/v1/body';
 import type { OrganizationContact } from '@/types';
 
 export async function GET(
@@ -55,7 +56,7 @@ export async function POST(
       return fail('bad_request', 'Request body must be a JSON object', 400);
     }
 
-    const contactId = typeof body.contact_id === 'string' ? body.contact_id : null;
+    const contactId = optionalId(body.contact_id);
     if (!contactId) {
       return fail('bad_request', "'contact_id' is required", 400);
     }

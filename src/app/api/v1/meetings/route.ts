@@ -16,6 +16,7 @@ import {
   keysetFilter,
   buildPage,
 } from '@/lib/api/v1/pagination';
+import { optionalId } from '@/lib/api/v1/body';
 import type { Meeting } from '@/types';
 
 export async function GET(request: Request) {
@@ -72,9 +73,8 @@ export async function POST(request: Request) {
       return fail('bad_request', 'Request body must be a JSON object', 400);
     }
 
-    const contactId = typeof body.contact_id === 'string' ? body.contact_id : null;
-    const organizationId =
-      typeof body.organization_id === 'string' ? body.organization_id : null;
+    const contactId = optionalId(body.contact_id);
+    const organizationId = optionalId(body.organization_id);
     if (!contactId && !organizationId) {
       return fail(
         'bad_request',
@@ -89,7 +89,7 @@ export async function POST(request: Request) {
         account_id: ctx.accountId,
         contact_id: contactId,
         organization_id: organizationId,
-        deal_id: typeof body.deal_id === 'string' ? body.deal_id : null,
+        deal_id: optionalId(body.deal_id),
         meeting_type:
           typeof body.meeting_type === 'string' ? body.meeting_type : 'PRESENCIAL',
         objective: typeof body.objective === 'string' ? body.objective : null,

@@ -15,6 +15,7 @@ import {
   keysetFilter,
   buildPage,
 } from '@/lib/api/v1/pagination';
+import { optionalId } from '@/lib/api/v1/body';
 import type { Task } from '@/types';
 
 export async function GET(request: Request) {
@@ -80,10 +81,9 @@ export async function POST(request: Request) {
       .from('tasks')
       .insert({
         account_id: ctx.accountId,
-        contact_id: typeof body.contact_id === 'string' ? body.contact_id : null,
-        organization_id:
-          typeof body.organization_id === 'string' ? body.organization_id : null,
-        meeting_id: typeof body.meeting_id === 'string' ? body.meeting_id : null,
+        contact_id: optionalId(body.contact_id),
+        organization_id: optionalId(body.organization_id),
+        meeting_id: optionalId(body.meeting_id),
         title,
         description: typeof body.description === 'string' ? body.description : null,
         due_date: typeof body.due_date === 'string' ? body.due_date : null,
